@@ -4,6 +4,7 @@ import {
   Shield, Zap, Layers, Brain, Search, Lock, 
   Code, AlertTriangle, CheckCircle, ArrowRight, Activity 
 } from 'lucide-react';
+import { apiUrl } from '../lib/api';
 
 const Hero = () => {
   return (
@@ -291,7 +292,7 @@ const DemoSection = () => {
     setResult(null);
     
     try {
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(apiUrl('/api/analyze'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

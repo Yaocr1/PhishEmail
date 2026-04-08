@@ -12,6 +12,7 @@ import {
   Power,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { API_BASE_URL, apiUrl } from '../../lib/api';
 
 interface ScannedEmail {
   id: string;
@@ -71,10 +72,19 @@ export const Integrations = () => {
   const [integrations, setIntegrations] = useState<IntegrationCard[]>(defaultIntegrations);
   const [statusError, setStatusError] = useState<string | null>(null);
 
+  const allowedMessageOrigins = new Set<string>([window.location.origin]);
+  if (API_BASE_URL) {
+    try {
+      allowedMessageOrigins.add(new URL(API_BASE_URL).origin);
+    } catch {
+      // ignore invalid URL values and continue with current origin only
+    }
+  }
+
   const refreshStatus = useCallback(async () => {
     try {
       setStatusError(null);
-      const response = await fetch('/api/integrations/status');
+      const response = await fetch(apiUrl('/api/integrations/status'));
       if (!response.ok) {
         throw new Error('Unable to load integration status.');
       }
@@ -109,7 +119,7 @@ export const Integrations = () => {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
+      if (!allowedMessageOrigins.has(event.origin)) {
         return;
       }
       
@@ -128,7 +138,7 @@ export const Integrations = () => {
       return;
     }
 
-    const eventSource = new EventSource('/api/scan/stream');
+    const eventSource = new EventSource(apiUrl('/api/scan/stream'));
     eventSource.onmessage = (event) => {
       const data: ScannedEmail = JSON.parse(event.data);
       setLiveEmails((prev) => [data, ...prev].slice(0, 5));
@@ -170,7 +180,7 @@ export const Integrations = () => {
       return;
     }
 
-    await fetch('/api/integrations/google/disconnect', {
+    await fetch(apiUrl('/api/integrations/google/disconnect'), {
       method: 'POST',
     });
 
@@ -186,7 +196,7 @@ export const Integrations = () => {
 
     try {
       // 1. Fetch the OAuth URL from your server
-      const response = await fetch('/api/auth/google/url');
+      const response = await fetch(apiUrl('/api/auth/google/url'));
       if (!response.ok) {
         const payload = await response.json().catch(() => ({ error: 'Failed to get auth URL' }));
         throw new Error(payload.error || 'Failed to get auth URL');

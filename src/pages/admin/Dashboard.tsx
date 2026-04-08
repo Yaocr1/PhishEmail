@@ -21,6 +21,7 @@ import {
   BarChart,
   Bar
 } from 'recharts';
+import { apiUrl } from '../../lib/api';
 
 interface DashboardSummary {
   stats: {
@@ -82,7 +83,7 @@ export const Dashboard = () => {
   const loadSummary = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/dashboard/summary');
+      const response = await fetch(apiUrl('/api/dashboard/summary'));
       if (!response.ok) {
         throw new Error('Failed to load dashboard data.');
       }

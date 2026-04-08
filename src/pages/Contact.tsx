@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, MessageSquare, Send, MapPin } from 'lucide-react';
+import { apiUrl } from '../lib/api';
 
 export const Contact = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +19,7 @@ export const Contact = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/contact', {
+      const response = await fetch(apiUrl('/api/contact'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

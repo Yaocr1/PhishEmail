@@ -17,6 +17,10 @@ const prisma = new PrismaClient({ adapter });
 const HF_API_URL = process.env.HF_PHISHING_API_URL || "https://alimusarizvi-phishing-email.hf.space/predict";
 const SCAN_INTERVAL_MS = Number(process.env.SCAN_INTERVAL_MS || 10000);
 const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // In-memory store for the prototype
 let globalCredentials: {
@@ -54,6 +58,18 @@ function clamp01(value: number): number {
 
 function hasGoogleOAuthConfig() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+function resolveCorsOrigin(requestOrigin?: string) {
+  if (CORS_ORIGINS.length === 0) {
+    return "*";
+  }
+
+  if (requestOrigin && CORS_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  return CORS_ORIGINS[0];
 }
 
 async function getSystemSetting() {
@@ -407,6 +423,19 @@ async function startServer() {
   await bootstrapState();
 
   app.use(express.json({ limit: "1mb" }));
+  app.use((req, res, next) => {
+    const origin = resolveCorsOrigin(req.headers.origin);
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {
