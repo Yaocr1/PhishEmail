@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+/src/generated/prisma
+Model/
+
+# Local planning and report artifacts (keep off GitHub)
+memory.md
+private_docs/

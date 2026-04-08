@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String?
+  role         String      @default("USER") // "ADMIN" or "USER"
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  emailScans   EmailScan[]
+  auditLogs    AuditLog[]
+}
+
+model EmailScan {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  sourceEmailId String? @unique
+  provider     String   @default("GMAIL")
+  
+  // Raw Email Payload
+  subject      String
+  sender       String
+  snippet      String
+  body         String?
+  
+  // Hugging Face Prediction Outputs
+  isPhishing   Boolean  // True if prediction crosses the threshold
+  confidence   Float    // Overall confidence in class choice
+  phishingProb Float    @default(0) // Exact probability of phishing class
+  label        String   @default("legitimate") // Original string label
+  requestId    String?  // Trace ID from HF API
+  
+  timestamp    DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([isPhishing])
+}
+
+model SystemSetting {
+  id                String   @id @default("1")
+  phishingThreshold Float    @default(0.6)
+  autoBlockEnabled  Boolean  @default(false)
+  gmailConnected    Boolean  @default(false)
+  gmailEmail        String?
+  gmailAccessToken  String?
+  gmailRefreshToken String?
+  gmailExpiryDate   DateTime?
+  updatedAt         DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  timestamp DateTime @default(now())
+}

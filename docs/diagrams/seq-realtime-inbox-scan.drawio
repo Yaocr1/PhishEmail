@@ -1,0 +1,25 @@
+<mxfile host="app.diagrams.net" modified="2026-04-08T17:10:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="seq-realtime-scan" name="Scan Incoming Emails in Real Time">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="r1" value="Admin UI (SSE Client)" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="70" y="80" width="170" height="920" as="geometry"/></mxCell>
+        <mxCell id="r2" value="Express Scan Loop" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="80" width="160" height="920" as="geometry"/></mxCell>
+        <mxCell id="r3" value="Gmail API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="570" y="80" width="140" height="920" as="geometry"/></mxCell>
+        <mxCell id="r4" value="HF Inference API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="800" y="80" width="160" height="920" as="geometry"/></mxCell>
+        <mxCell id="r5" value="Prisma DB" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="1060" y="80" width="140" height="920" as="geometry"/></mxCell>
+
+        <mxCell id="s1" value="1. Open /api/scan/stream" style="endArrow=block;html=1;" edge="1" parent="1" source="r1" target="r2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s2" value="2. Poll inbox messages" style="endArrow=block;html=1;" edge="1" parent="1" source="r2" target="r3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s3" value="3. Return new message metadata" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="r3" target="r2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s4" value="4. Analyze message text" style="endArrow=block;html=1;" edge="1" parent="1" source="r2" target="r4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s5" value="5. Return phishing score" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="r4" target="r2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s6" value="6. Save EmailScan + dedupe" style="endArrow=block;html=1;" edge="1" parent="1" source="r2" target="r5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s7" value="7. Push SSE event" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="r2" target="r1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="s8" value="8. Render live threat row" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="r1" target="r1"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

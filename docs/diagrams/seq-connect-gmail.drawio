@@ -1,0 +1,27 @@
+<mxfile host="app.diagrams.net" modified="2026-04-08T17:00:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="seq-connect-gmail" name="Connect Gmail Account">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="u1" value="Admin User" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="80" y="80" width="130" height="900" as="geometry"/></mxCell>
+        <mxCell id="u2" value="React Integrations UI" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="290" y="80" width="170" height="900" as="geometry"/></mxCell>
+        <mxCell id="u3" value="Express API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="540" y="80" width="140" height="900" as="geometry"/></mxCell>
+        <mxCell id="u4" value="Google OAuth" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="770" y="80" width="140" height="900" as="geometry"/></mxCell>
+        <mxCell id="u5" value="Gmail API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="1000" y="80" width="140" height="900" as="geometry"/></mxCell>
+        <mxCell id="u6" value="Prisma DB" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="1230" y="80" width="140" height="900" as="geometry"/></mxCell>
+
+        <mxCell id="e1" value="1. Click Connect Gmail" style="endArrow=block;html=1;" edge="1" parent="1" source="u1" target="u2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="2. GET /api/auth/google/url" style="endArrow=block;html=1;" edge="1" parent="1" source="u2" target="u3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="3. Return OAuth URL" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="u3" target="u2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="4. Open popup and authorize" style="endArrow=block;html=1;" edge="1" parent="1" source="u2" target="u4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="5. Callback with auth code" style="endArrow=block;html=1;" edge="1" parent="1" source="u4" target="u3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="6. Exchange code for tokens" style="endArrow=block;html=1;" edge="1" parent="1" source="u3" target="u4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="7. Fetch profile email" style="endArrow=block;html=1;" edge="1" parent="1" source="u3" target="u5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="8. Save tokens and gmailConnected" style="endArrow=block;html=1;" edge="1" parent="1" source="u3" target="u6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" value="9. Post message auth success" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="u3" target="u2"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

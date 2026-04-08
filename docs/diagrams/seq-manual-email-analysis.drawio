@@ -1,0 +1,24 @@
+<mxfile host="app.diagrams.net" modified="2026-04-08T17:05:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="seq-manual-analysis" name="Submit Email for Manual Analysis">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="m1" value="Student User" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="100" y="80" width="130" height="900" as="geometry"/></mxCell>
+        <mxCell id="m2" value="Home Demo UI" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="80" width="150" height="900" as="geometry"/></mxCell>
+        <mxCell id="m3" value="Express API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="560" y="80" width="140" height="900" as="geometry"/></mxCell>
+        <mxCell id="m4" value="HF Inference API" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="800" y="80" width="160" height="900" as="geometry"/></mxCell>
+        <mxCell id="m5" value="Prisma DB" style="shape=umlLifeline;perimeter=lifelinePerimeter;html=1;" vertex="1" parent="1"><mxGeometry x="1060" y="80" width="140" height="900" as="geometry"/></mxCell>
+
+        <mxCell id="f1" value="1. Enter subject/sender/body" style="endArrow=block;html=1;" edge="1" parent="1" source="m1" target="m2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="2. POST /api/analyze" style="endArrow=block;html=1;" edge="1" parent="1" source="m2" target="m3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f3" value="3. Call HF /predict" style="endArrow=block;html=1;" edge="1" parent="1" source="m3" target="m4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="4. Return label + confidence" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="m4" target="m3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f5" value="5. Persist EmailScan record" style="endArrow=block;html=1;" edge="1" parent="1" source="m3" target="m5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="6. Respond JSON verdict" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="m3" target="m2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f7" value="7. Render phishing result" style="endArrow=open;dashed=1;html=1;" edge="1" parent="1" source="m2" target="m1"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
