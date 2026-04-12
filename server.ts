@@ -2,17 +2,23 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { google } from "googleapis";
-import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import "dotenv/config";
 
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL || "file:./dev.db",
-});
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const prisma = new PrismaClient({ adapter });
+const supabase =
+  supabaseUrl && supabaseServiceRoleKey
+    ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      })
+    : null;
 
 const HF_API_URL = process.env.HF_PHISHING_API_URL || "https://alimusarizvi-phishing-email.hf.space/predict";
 const SCAN_INTERVAL_MS = Number(process.env.SCAN_INTERVAL_MS || 10000);
@@ -22,19 +28,7 @@ const CORS_ORIGINS = (process.env.CORS_ORIGIN || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-// In-memory store for the prototype
-let globalCredentials: {
-  access_token?: string | null;
-  refresh_token?: string | null;
-  expiry_date?: number | null;
-  scope?: string | null;
-  token_type?: string | null;
-} | null = null;
-let isScanning = false;
-let scanClients = new Set<express.Response>();
-let emailsProcessed = 0;
-let scanTimer: NodeJS.Timeout | null = null;
-const processedMessageIds = new Set<string>();
+type EmailProvider = "GMAIL" | "SIMULATION" | "MANUAL";
 
 type NormalizedAnalysis = {
   label: "phishing" | "legitimate";
@@ -48,8 +42,67 @@ type ScannableEmail = {
   subject: string;
   sender: string;
   snippet: string;
-  provider: "GMAIL" | "SIMULATION" | "MANUAL";
+  provider: EmailProvider;
 };
+
+type EmailScanRow = {
+  id: string;
+  user_id: string | null;
+  source_email_id: string | null;
+  provider: string;
+  subject: string;
+  sender: string;
+  snippet: string;
+  body: string | null;
+  is_phishing: boolean;
+  confidence: number;
+  phishing_prob: number;
+  label: string;
+  request_id: string | null;
+  timestamp: string;
+};
+
+type SystemSettingRow = {
+  id: string;
+  phishing_threshold: number;
+  auto_block_enabled: boolean;
+  gmail_connected: boolean;
+  gmail_email: string | null;
+  gmail_access_token: string | null;
+  gmail_refresh_token: string | null;
+  gmail_expiry_date: string | null;
+  updated_at: string;
+};
+
+type UserRow = {
+  id: string;
+  email: string;
+  password_hash: string | null;
+  role: string;
+};
+
+// In-memory state for runtime scanning
+let globalCredentials: {
+  access_token?: string | null;
+  refresh_token?: string | null;
+  expiry_date?: number | null;
+  scope?: string | null;
+  token_type?: string | null;
+} | null = null;
+let isScanning = false;
+let scanClients = new Set<express.Response>();
+let emailsProcessed = 0;
+let scanTimer: NodeJS.Timeout | null = null;
+const processedMessageIds = new Set<string>();
+
+function getDb(): SupabaseClient {
+  if (!supabase) {
+    throw new Error(
+      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment."
+    );
+  }
+  return supabase;
+}
 
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0;
@@ -72,50 +125,88 @@ function resolveCorsOrigin(requestOrigin?: string) {
   return CORS_ORIGINS[0];
 }
 
-async function getSystemSetting() {
-  const existing = await prisma.systemSetting.findUnique({ where: { id: "1" } });
-  if (existing) {
-    return existing;
+async function getSystemSetting(): Promise<SystemSettingRow> {
+  const db = getDb();
+
+  const { data, error } = await db.from("phish_system_settings").select("*").eq("id", "1").maybeSingle();
+  if (error) {
+    throw new Error(`Failed to load system settings: ${error.message}`);
   }
 
-  return prisma.systemSetting.create({ data: { id: "1" } });
+  if (data) {
+    return data as SystemSettingRow;
+  }
+
+  const { data: inserted, error: insertError } = await db
+    .from("phish_system_settings")
+    .insert({ id: "1" })
+    .select("*")
+    .single();
+
+  if (insertError || !inserted) {
+    throw new Error(`Failed to create default system settings: ${insertError?.message || "Unknown error"}`);
+  }
+
+  return inserted as SystemSettingRow;
+}
+
+async function getRecentScans(limit: number): Promise<EmailScanRow[]> {
+  const db = getDb();
+  const { data, error } = await db
+    .from("phish_email_scans")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to load recent scans: ${error.message}`);
+  }
+
+  return (data || []) as EmailScanRow[];
 }
 
 async function bootstrapState() {
-  const [count, settings, recentIds] = await Promise.all([
-    prisma.emailScan.count(),
+  const db = getDb();
+
+  const [{ count, error: countError }, settings, { data: recentIds, error: recentIdsError }] = await Promise.all([
+    db.from("phish_email_scans").select("id", { count: "exact", head: true }),
     getSystemSetting(),
-    prisma.emailScan.findMany({
-      where: { sourceEmailId: { not: null } },
-      select: { sourceEmailId: true },
-      orderBy: { timestamp: "desc" },
-      take: 200,
-    }),
+    db
+      .from("phish_email_scans")
+      .select("source_email_id")
+      .not("source_email_id", "is", null)
+      .order("timestamp", { ascending: false })
+      .limit(200),
   ]);
 
-  emailsProcessed = count;
+  if (countError) {
+    throw new Error(`Failed to count scans: ${countError.message}`);
+  }
 
-  recentIds.forEach((row) => {
-    if (row.sourceEmailId) {
-      processedMessageIds.add(row.sourceEmailId);
+  if (recentIdsError) {
+    throw new Error(`Failed to preload scan IDs: ${recentIdsError.message}`);
+  }
+
+  emailsProcessed = count || 0;
+
+  (recentIds || []).forEach((row) => {
+    const sourceId = (row as { source_email_id: string | null }).source_email_id;
+    if (sourceId) {
+      processedMessageIds.add(sourceId);
     }
   });
 
-  if (settings.gmailConnected && (settings.gmailAccessToken || settings.gmailRefreshToken)) {
+  if (settings.gmail_connected && (settings.gmail_access_token || settings.gmail_refresh_token)) {
     globalCredentials = {
-      access_token: settings.gmailAccessToken,
-      refresh_token: settings.gmailRefreshToken,
-      expiry_date: settings.gmailExpiryDate?.getTime() ?? null,
+      access_token: settings.gmail_access_token,
+      refresh_token: settings.gmail_refresh_token,
+      expiry_date: settings.gmail_expiry_date ? new Date(settings.gmail_expiry_date).getTime() : null,
     };
   }
 }
 
 function getOAuthClient(redirectUri?: string) {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri
-  );
+  return new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, redirectUri);
 }
 
 function parseHeader(
@@ -170,12 +261,7 @@ function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
   const phishingLabel = rawLabel.includes("phish");
 
   const phishingProb = clamp01(
-    Number(
-      candidate?.phishing_prob ??
-      (phishingLabel ? candidate?.score : undefined) ??
-      candidate?.probability ??
-      0
-    )
+    Number(candidate?.phishing_prob ?? (phishingLabel ? candidate?.score : undefined) ?? candidate?.probability ?? 0)
   );
 
   const label: "phishing" | "legitimate" = phishingLabel || phishingProb >= 0.5 ? "phishing" : "legitimate";
@@ -189,22 +275,20 @@ function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
   };
 }
 
-// HF Phishing Email Engine Integration
 const analyzeEmailAsync = async (subject: string, sender: string, snippet: string) => {
   try {
     const fullText = `Subject: ${subject}\nSender: ${sender}\n\n${snippet}`.substring(0, 15000);
-    
+
     const response = await fetch(HF_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: fullText })
+      body: JSON.stringify({ text: fullText }),
     });
-    
+
     if (!response.ok) {
-      console.error("HF API Error:", response.statusText);
       throw new Error(`HF API responded with status ${response.status}`);
     }
-    
+
     const rawResponse = await response.json();
     return normalizeHFAnalysis(rawResponse);
   } catch (err) {
@@ -222,9 +306,10 @@ function generateMockEmail() {
     "Lunch plans for tomorrow?",
     "Action Required: Update your payment method",
     "Your Amazon Order #112-49120",
-    "Suspended: Your bank account requires verification"
+    "Suspended: Your bank account requires verification",
   ];
   const subject = mockSubjects[Math.floor(Math.random() * mockSubjects.length)];
+
   return {
     id: `sim-${randomUUID()}`,
     subject,
@@ -234,34 +319,28 @@ function generateMockEmail() {
   };
 }
 
-function getDashboardPayload(scan: {
-  id: string;
-  subject: string;
-  sender: string;
-  snippet: string;
-  timestamp: Date;
-  isPhishing: boolean;
-  confidence: number;
-  label: string;
-  phishingProb: number;
-}) {
+function getDashboardPayload(scan: EmailScanRow) {
   return {
     id: scan.id,
     subject: scan.subject,
     sender: scan.sender,
     snippet: scan.snippet,
-    timestamp: scan.timestamp.toISOString(),
+    timestamp: scan.timestamp,
     analysis: {
-      isPhishing: scan.isPhishing,
+      isPhishing: scan.is_phishing,
       confidence: scan.confidence,
       threatType: scan.label === "phishing" ? "Credential Harvesting" : "None",
-      phishingProb: scan.phishingProb,
+      phishingProb: scan.phishing_prob,
     },
     totalProcessed: emailsProcessed,
   };
 }
 
 function broadcastToClients(payload: unknown) {
+  if (scanClients.size === 0) {
+    return;
+  }
+
   const serialized = `data: ${JSON.stringify(payload)}\n\n`;
   scanClients.forEach((client) => {
     client.write(serialized);
@@ -271,40 +350,52 @@ function broadcastToClients(payload: unknown) {
 async function persistCredentialsFromClient(oauth2Client: ReturnType<typeof getOAuthClient>) {
   const credentials = oauth2Client.credentials;
   const existing = await getSystemSetting();
+  const db = getDb();
 
-  const refreshToken = credentials.refresh_token || existing.gmailRefreshToken;
-  const accessToken = credentials.access_token || existing.gmailAccessToken;
-  const expiryDate = credentials.expiry_date
-    ? new Date(credentials.expiry_date)
-    : existing.gmailExpiryDate;
+  const refreshToken = credentials.refresh_token || existing.gmail_refresh_token;
+  const accessToken = credentials.access_token || existing.gmail_access_token;
+  const expiryDateIso = credentials.expiry_date
+    ? new Date(credentials.expiry_date).toISOString()
+    : existing.gmail_expiry_date;
 
   if (!refreshToken && !accessToken) {
     return;
   }
 
-  await prisma.systemSetting.update({
-    where: { id: "1" },
-    data: {
-      gmailConnected: true,
-      gmailAccessToken: accessToken,
-      gmailRefreshToken: refreshToken,
-      gmailExpiryDate: expiryDate,
-    },
-  });
+  const { error } = await db
+    .from("phish_system_settings")
+    .update({
+      gmail_connected: true,
+      gmail_access_token: accessToken,
+      gmail_refresh_token: refreshToken,
+      gmail_expiry_date: expiryDateIso,
+    })
+    .eq("id", "1");
+
+  if (error) {
+    throw new Error(`Failed to persist Gmail credentials: ${error.message}`);
+  }
 
   globalCredentials = {
     access_token: accessToken,
     refresh_token: refreshToken,
-    expiry_date: expiryDate?.getTime() ?? null,
+    expiry_date: expiryDateIso ? new Date(expiryDateIso).getTime() : null,
   };
 }
 
 async function saveScan(email: ScannableEmail, analysis: NormalizedAnalysis) {
+  const db = getDb();
+
   if (email.id && email.provider === "GMAIL") {
-    const existing = await prisma.emailScan.findUnique({
-      where: { sourceEmailId: email.id },
-      select: { id: true },
-    });
+    const { data: existing, error: existingError } = await db
+      .from("phish_email_scans")
+      .select("id")
+      .eq("source_email_id", email.id)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new Error(`Failed to check duplicate scan: ${existingError.message}`);
+    }
 
     if (existing) {
       processedMessageIds.add(email.id);
@@ -313,33 +404,39 @@ async function saveScan(email: ScannableEmail, analysis: NormalizedAnalysis) {
   }
 
   const setting = await getSystemSetting();
-  const isPhishing = analysis.phishingProb >= setting.phishingThreshold;
+  const isPhishing = analysis.phishingProb >= setting.phishing_threshold;
 
-  const saved = await prisma.emailScan.create({
-    data: {
-      sourceEmailId: email.id || null,
+  const { data: saved, error: saveError } = await db
+    .from("phish_email_scans")
+    .insert({
+      source_email_id: email.id || null,
       provider: email.provider,
       subject: email.subject,
       sender: email.sender,
       snippet: email.snippet,
-      isPhishing,
+      is_phishing: isPhishing,
       confidence: analysis.confidence,
-      phishingProb: analysis.phishingProb,
+      phishing_prob: analysis.phishingProb,
       label: analysis.label,
-      requestId: analysis.requestId || undefined,
-    },
-  });
+      request_id: analysis.requestId || null,
+    })
+    .select("*")
+    .single();
+
+  if (saveError || !saved) {
+    throw new Error(`Failed to save email scan: ${saveError?.message || "Unknown error"}`);
+  }
 
   if (email.id) {
     processedMessageIds.add(email.id);
   }
 
   emailsProcessed += 1;
-  return saved;
+  return saved as EmailScanRow;
 }
 
-async function scanIncomingEmails() {
-  if (scanClients.size === 0) {
+async function scanIncomingEmails(force = false) {
+  if (!force && scanClients.size === 0) {
     return;
   }
 
@@ -418,6 +515,10 @@ function startScanningLoop() {
 }
 
 async function startServer() {
+  if (!supabase) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to start the server.");
+  }
+
   const app = express();
   const PORT = 3000;
   await bootstrapState();
@@ -437,9 +538,8 @@ async function startServer() {
     next();
   });
 
-  // API routes FIRST
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", scannerActive: isScanning });
+    res.json({ status: "ok", scannerActive: isScanning, database: "supabase" });
   });
 
   app.post("/api/analyze", async (req, res) => {
@@ -470,13 +570,14 @@ async function startServer() {
         return;
       }
 
+      const setting = await getSystemSetting();
       res.json({
         id: saved.id,
         label: saved.label,
         confidence: saved.confidence,
-        phishingProb: saved.phishingProb,
-        isPhishing: saved.isPhishing,
-        threshold: (await getSystemSetting()).phishingThreshold,
+        phishingProb: saved.phishing_prob,
+        isPhishing: saved.is_phishing,
+        threshold: setting.phishing_threshold,
       });
     } catch (error) {
       console.error("Manual analysis error:", error);
@@ -485,131 +586,194 @@ async function startServer() {
   });
 
   app.get("/api/scans/recent", async (req, res) => {
-    const limit = Math.min(Number(req.query.limit || 20), 100);
-    const scans = await prisma.emailScan.findMany({
-      orderBy: { timestamp: "desc" },
-      take: Number.isFinite(limit) ? limit : 20,
-    });
+    try {
+      const limit = Math.min(Number(req.query.limit || 20), 100);
+      const scans = await getRecentScans(Number.isFinite(limit) ? limit : 20);
 
-    res.json(
-      scans.map((scan) => ({
-        id: scan.id,
-        sender: scan.sender,
-        subject: scan.subject,
-        timestamp: scan.timestamp,
-        confidence: scan.confidence,
-        phishingProb: scan.phishingProb,
-        isPhishing: scan.isPhishing,
-        label: scan.label,
-      }))
-    );
+      res.json(
+        scans.map((scan) => ({
+          id: scan.id,
+          sender: scan.sender,
+          subject: scan.subject,
+          timestamp: scan.timestamp,
+          confidence: scan.confidence,
+          phishingProb: scan.phishing_prob,
+          isPhishing: scan.is_phishing,
+          label: scan.label,
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch recent scans:", error);
+      res.status(500).json({ error: "Failed to load recent scans." });
+    }
+  });
+
+  app.post("/api/scan/poll", async (req, res) => {
+    try {
+      await scanIncomingEmails(true);
+      const scans = await getRecentScans(5);
+      res.json({
+        emails: scans.map(getDashboardPayload),
+        totalProcessed: emailsProcessed,
+      });
+    } catch (error) {
+      console.error("Manual scan poll failed:", error);
+      res.status(500).json({ error: "Failed to poll inbox scan." });
+    }
   });
 
   app.get("/api/dashboard/summary", async (req, res) => {
-    const now = Date.now();
-    const since24h = new Date(now - 24 * 60 * 60 * 1000);
-    const scans = await prisma.emailScan.findMany({
-      where: { timestamp: { gte: since24h } },
-      orderBy: { timestamp: "asc" },
-      take: 1000,
-    });
+    try {
+      const db = getDb();
+      const now = Date.now();
+      const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 
-    const blocked = scans.filter((scan) => scan.isPhishing).length;
-    const total = scans.length;
-    const safe = total - blocked;
-    const falsePositiveRate = total === 0 ? 0 : (safe * 0.005) / total;
+      const { data: scansData, error: scansError } = await db
+        .from("phish_email_scans")
+        .select("*")
+        .gte("timestamp", since24h)
+        .order("timestamp", { ascending: true })
+        .limit(1000);
 
-    const buckets = new Map<string, { scanned: number; blocked: number }>();
-    for (let i = 0; i < 24; i += 4) {
-      const key = `${String(i).padStart(2, "0")}:00`;
-      buckets.set(key, { scanned: 0, blocked: 0 });
-    }
+      if (scansError) {
+        throw new Error(scansError.message);
+      }
 
-    scans.forEach((scan) => {
-      const hour = scan.timestamp.getHours();
-      const bucketHour = Math.floor(hour / 4) * 4;
-      const key = `${String(bucketHour).padStart(2, "0")}:00`;
-      const bucket = buckets.get(key);
-      if (bucket) {
-        bucket.scanned += 1;
-        if (scan.isPhishing) {
-          bucket.blocked += 1;
+      const scans = (scansData || []) as EmailScanRow[];
+
+      const blocked = scans.filter((scan) => scan.is_phishing).length;
+      const total = scans.length;
+      const safe = total - blocked;
+      const falsePositiveRate = total === 0 ? 0 : (safe * 0.005) / total;
+
+      const buckets = new Map<string, { scanned: number; blocked: number }>();
+      for (let i = 0; i < 24; i += 4) {
+        const key = `${String(i).padStart(2, "0")}:00`;
+        buckets.set(key, { scanned: 0, blocked: 0 });
+      }
+
+      scans.forEach((scan) => {
+        const hour = new Date(scan.timestamp).getHours();
+        const bucketHour = Math.floor(hour / 4) * 4;
+        const key = `${String(bucketHour).padStart(2, "0")}:00`;
+        const bucket = buckets.get(key);
+        if (bucket) {
+          bucket.scanned += 1;
+          if (scan.is_phishing) {
+            bucket.blocked += 1;
+          }
         }
+      });
+
+      const threatLabelMap = new Map<string, number>();
+      scans.forEach((scan) => {
+        if (!scan.is_phishing) {
+          return;
+        }
+        const label = scan.label === "phishing" ? "Credential Theft" : scan.label;
+        threatLabelMap.set(label, (threatLabelMap.get(label) || 0) + 1);
+      });
+
+      const threatTypes = Array.from(threatLabelMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 4);
+
+      const { data: threatsData, error: threatsError } = await db
+        .from("phish_email_scans")
+        .select("*")
+        .eq("is_phishing", true)
+        .order("timestamp", { ascending: false })
+        .limit(5);
+
+      if (threatsError) {
+        throw new Error(threatsError.message);
       }
-    });
 
-    const threatLabelMap = new Map<string, number>();
-    scans.forEach((scan) => {
-      if (!scan.isPhishing) {
-        return;
-      }
-      const label = scan.label === "phishing" ? "Credential Theft" : scan.label;
-      threatLabelMap.set(label, (threatLabelMap.get(label) || 0) + 1);
-    });
+      const recentThreats = (threatsData || []) as EmailScanRow[];
 
-    const threatTypes = Array.from(threatLabelMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 4);
-
-    const recentThreats = await prisma.emailScan.findMany({
-      where: { isPhishing: true },
-      orderBy: { timestamp: "desc" },
-      take: 5,
-    });
-
-    res.json({
-      stats: {
-        totalScanned24h: total,
-        threatsBlocked24h: blocked,
-        falsePositiveRate,
-        avgProcessingTimeSec: 1.1,
-      },
-      chart: Array.from(buckets.entries()).map(([time, value]) => ({ time, ...value })),
-      threatTypes,
-      recentThreats: recentThreats.map((scan) => ({
-        id: scan.id,
-        sender: scan.sender,
-        subject: scan.subject,
-        score: scan.phishingProb,
-        time: scan.timestamp,
-        status: "Blocked",
-      })),
-    });
+      res.json({
+        stats: {
+          totalScanned24h: total,
+          threatsBlocked24h: blocked,
+          falsePositiveRate,
+          avgProcessingTimeSec: 1.1,
+        },
+        chart: Array.from(buckets.entries()).map(([time, value]) => ({ time, ...value })),
+        threatTypes,
+        recentThreats: recentThreats.map((scan) => ({
+          id: scan.id,
+          sender: scan.sender,
+          subject: scan.subject,
+          score: scan.phishing_prob,
+          time: scan.timestamp,
+          status: "Blocked",
+        })),
+      });
+    } catch (error) {
+      console.error("Failed to build dashboard summary:", error);
+      res.status(500).json({ error: "Failed to load dashboard summary." });
+    }
   });
 
   app.get("/api/integrations/status", async (req, res) => {
-    const [setting, latestScan] = await Promise.all([
-      getSystemSetting(),
-      prisma.emailScan.findFirst({ where: { provider: "GMAIL" }, orderBy: { timestamp: "desc" } }),
-    ]);
+    try {
+      const db = getDb();
+      const [setting, latestScanResponse] = await Promise.all([
+        getSystemSetting(),
+        db
+          .from("phish_email_scans")
+          .select("timestamp")
+          .eq("provider", "GMAIL")
+          .order("timestamp", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
-    res.json({
-      gmail: {
-        connected: setting.gmailConnected,
-        email: setting.gmailEmail,
-        lastSync: latestScan?.timestamp || null,
-      },
-      totals: {
-        processed: emailsProcessed,
-      },
-    });
+      if (latestScanResponse.error) {
+        throw new Error(latestScanResponse.error.message);
+      }
+
+      res.json({
+        gmail: {
+          connected: setting.gmail_connected,
+          email: setting.gmail_email,
+          lastSync: latestScanResponse.data?.timestamp || null,
+        },
+        totals: {
+          processed: emailsProcessed,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to load integration status:", error);
+      res.status(500).json({ error: "Failed to load integration status." });
+    }
   });
 
   app.post("/api/integrations/google/disconnect", async (req, res) => {
-    await prisma.systemSetting.update({
-      where: { id: "1" },
-      data: {
-        gmailConnected: false,
-        gmailEmail: null,
-        gmailAccessToken: null,
-        gmailRefreshToken: null,
-        gmailExpiryDate: null,
-      },
-    });
+    try {
+      const db = getDb();
+      const { error } = await db
+        .from("phish_system_settings")
+        .update({
+          gmail_connected: false,
+          gmail_email: null,
+          gmail_access_token: null,
+          gmail_refresh_token: null,
+          gmail_expiry_date: null,
+        })
+        .eq("id", "1");
 
-    globalCredentials = null;
-    res.json({ ok: true });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      globalCredentials = null;
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Failed to disconnect Gmail integration:", error);
+      res.status(500).json({ error: "Failed to disconnect Gmail integration." });
+    }
   });
 
   app.post("/api/auth/signup", async (req, res) => {
@@ -626,26 +790,47 @@ async function startServer() {
       return;
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      res.status(409).json({ error: "An account with this email already exists." });
-      return;
+    try {
+      const db = getDb();
+      const { data: existing, error: existingError } = await db
+        .from("phish_users")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (existingError) {
+        throw new Error(existingError.message);
+      }
+
+      if (existing) {
+        res.status(409).json({ error: "An account with this email already exists." });
+        return;
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const { data: user, error: createError } = await db
+        .from("phish_users")
+        .insert({
+          email,
+          password_hash: passwordHash,
+          role: "USER",
+        })
+        .select("id,email,role")
+        .single();
+
+      if (createError || !user) {
+        throw new Error(createError?.message || "Unable to create user.");
+      }
+
+      res.status(201).json({
+        id: (user as UserRow).id,
+        email: (user as UserRow).email,
+        role: (user as UserRow).role,
+      });
+    } catch (error) {
+      console.error("Sign-up failed:", error);
+      res.status(500).json({ error: "Failed to create account." });
     }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: "USER",
-      },
-    });
-
-    res.status(201).json({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
   });
 
   app.post("/api/auth/login", async (req, res) => {
@@ -657,23 +842,39 @@ async function startServer() {
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash) {
-      res.status(401).json({ error: "Invalid credentials." });
-      return;
-    }
+    try {
+      const db = getDb();
+      const { data: user, error: userError } = await db
+        .from("phish_users")
+        .select("id,email,role,password_hash")
+        .eq("email", email)
+        .maybeSingle();
 
-    const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) {
-      res.status(401).json({ error: "Invalid credentials." });
-      return;
-    }
+      if (userError) {
+        throw new Error(userError.message);
+      }
 
-    res.json({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
+      if (!user || !(user as UserRow).password_hash) {
+        res.status(401).json({ error: "Invalid credentials." });
+        return;
+      }
+
+      const castedUser = user as UserRow;
+      const isValid = await bcrypt.compare(password, castedUser.password_hash as string);
+      if (!isValid) {
+        res.status(401).json({ error: "Invalid credentials." });
+        return;
+      }
+
+      res.json({
+        id: castedUser.id,
+        email: castedUser.email,
+        role: castedUser.role,
+      });
+    } catch (error) {
+      console.error("Login failed:", error);
+      res.status(500).json({ error: "Login failed." });
+    }
   });
 
   app.post("/api/contact", async (req, res) => {
@@ -686,17 +887,24 @@ async function startServer() {
       return;
     }
 
-    await prisma.auditLog.create({
-      data: {
+    try {
+      const db = getDb();
+      const { error } = await db.from("phish_audit_logs").insert({
         action: "CONTACT_MESSAGE",
         details: `From ${name} <${email}>: ${message.slice(0, 500)}`,
-      },
-    });
+      });
 
-    res.status(201).json({ ok: true });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      res.status(201).json({ ok: true });
+    } catch (error) {
+      console.error("Failed to save contact message:", error);
+      res.status(500).json({ error: "Failed to save contact message." });
+    }
   });
 
-  // OAuth URL generation endpoint
   app.get("/api/auth/google/url", (req, res) => {
     if (!hasGoogleOAuthConfig()) {
       res.status(400).json({
@@ -706,8 +914,6 @@ async function startServer() {
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID as string;
-    
-    // Construct the redirect URI based on the request host
     const host = req.get("host");
     const protocol = req.headers["x-forwarded-proto"] || req.protocol;
     const redirectUri = `${protocol}://${host}/auth/callback`;
@@ -721,16 +927,13 @@ async function startServer() {
       prompt: "consent",
     });
 
-    const providerAuthUrl = "https://accounts.google.com/o/oauth2/v2/auth";
-    const authUrl = `${providerAuthUrl}?${params.toString()}`;
-
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     res.json({ url: authUrl });
   });
 
-  // OAuth callback handler
   app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
     const code = req.query.code as string;
-    
+
     if (code && hasGoogleOAuthConfig()) {
       try {
         const host = req.get("host");
@@ -738,46 +941,48 @@ async function startServer() {
         const redirectUri = `${protocol}://${host}/auth/callback`;
 
         const oauth2Client = getOAuthClient(redirectUri);
-        
         const { tokens } = await oauth2Client.getToken(code);
         oauth2Client.setCredentials(tokens);
 
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
         const profile = await gmail.users.getProfile({ userId: "me" });
+
+        const db = getDb();
         const setting = await getSystemSetting();
 
-        const refreshToken = tokens.refresh_token || setting.gmailRefreshToken;
-        const accessToken = tokens.access_token || setting.gmailAccessToken;
-        const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : setting.gmailExpiryDate;
+        const refreshToken = tokens.refresh_token || setting.gmail_refresh_token;
+        const accessToken = tokens.access_token || setting.gmail_access_token;
+        const expiryDateIso = tokens.expiry_date
+          ? new Date(tokens.expiry_date).toISOString()
+          : setting.gmail_expiry_date;
 
-        await prisma.systemSetting.update({
-          where: { id: "1" },
-          data: {
-            gmailConnected: true,
-            gmailEmail: profile.data.emailAddress || setting.gmailEmail,
-            gmailAccessToken: accessToken,
-            gmailRefreshToken: refreshToken,
-            gmailExpiryDate: expiryDate,
-          },
-        });
+        const { error } = await db
+          .from("phish_system_settings")
+          .update({
+            gmail_connected: true,
+            gmail_email: profile.data.emailAddress || setting.gmail_email,
+            gmail_access_token: accessToken,
+            gmail_refresh_token: refreshToken,
+            gmail_expiry_date: expiryDateIso,
+          })
+          .eq("id", "1");
+
+        if (error) {
+          throw new Error(error.message);
+        }
 
         globalCredentials = {
           access_token: accessToken,
           refresh_token: refreshToken,
-          expiry_date: expiryDate?.getTime() ?? null,
+          expiry_date: expiryDateIso ? new Date(expiryDateIso).getTime() : null,
           scope: tokens.scope,
           token_type: tokens.token_type,
         };
-
-        console.log("Successfully acquired Gmail API tokens.");
       } catch (error) {
         console.error("Error exchanging code for tokens:", error);
       }
-    } else {
-      console.log("No OAuth code available. Returning to integrations screen.");
     }
-    
-    // Send success message to parent window and close popup
+
     res.send(`
       <html>
         <body>
@@ -795,7 +1000,6 @@ async function startServer() {
     `);
   });
 
-  // SSE Endpoint for real-time scanning feed
   app.get("/api/scan/stream", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -811,7 +1015,6 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -840,6 +1043,5 @@ process.on("SIGINT", async () => {
   if (scanTimer) {
     clearInterval(scanTimer);
   }
-  await prisma.$disconnect();
   process.exit(0);
 });

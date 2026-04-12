@@ -7,7 +7,6 @@ coverage/
 .env*
 !.env.example
 
-/src/generated/prisma
 Model/
 
 # Local planning and report artifacts (keep off GitHub)

@@ -1,294 +1,258 @@
-## PhishBERT - Phishing Email Detector
+# PhishBERT (Supabase Edition)
 
-PhishBERT is a full-stack phishing detection prototype that can:
+PhishBERT is a phishing email detection system that:
+- Connects to Gmail using OAuth 2.0
+- Pulls incoming emails (read-only scope)
+- Scores each email using your Hugging Face model API
+- Stores results in Supabase
+- Shows analysis in the admin dashboard
 
-- Analyze manual email text using a Hugging Face phishing model.
-- Connect to Gmail with OAuth 2.0.
-- Scan incoming Gmail messages and classify them as phishing or legitimate.
-- Show results in an admin dashboard with live threat feed and metrics.
-
-This project is designed for Final Year Project research + prototype demonstration.
-
----
-
-## 1) Tech Stack
-
-- Frontend: React + Vite + TypeScript
-- Backend: Express + TypeScript
-- Database: Prisma + SQLite
-- Gmail Integration: Google OAuth 2.0 + Gmail API
-- ML Inference: Hugging Face endpoint
+This README is written for first-time users.
 
 ---
 
-## 2) Quick Local Setup
+## 1. What Changed
 
-### Prerequisites
+Prisma/SQLite has been removed.
 
+The project now uses:
+- `@supabase/supabase-js` from backend (`server.ts`)
+- Supabase tables created from:
+  - `supabase/schema_and_seed.sql`
+
+---
+
+## 2. First-Time Setup (Local)
+
+### Requirements
 - Node.js 20+
 - npm 10+
-- A Google account
+- Supabase account (free)
+- Google account
 
-### Steps
-
-1. Install dependencies
+### Install packages
 
 ```bash
 npm install
 ```
 
-2. Create env file
-
-```bash
-cp .env.example .env
-```
-
-If you are on PowerShell:
+### Create environment file
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-3. Initialize Prisma and database
-
-```bash
-npx prisma generate
-npx prisma db push
-```
-
-4. Start app
-
-```bash
-npm run dev
-```
-
-5. Open
-
-- http://localhost:3000
-
----
-
-## 3) Gmail OAuth Setup (First Time - Step by Step)
-
-This section is for first-time OAuth users.
-
-### Step A: Create Google Cloud Project
-
-1. Open Google Cloud Console: https://console.cloud.google.com
-2. Click project selector (top bar) -> New Project
-3. Name it (example: PhishBERT)
-4. Create
-
-### Step B: Configure OAuth Consent Screen
-
-1. In left menu: APIs & Services -> OAuth consent screen
-2. Choose User Type: External
-3. App name: PhishBERT
-4. User support email: your Gmail
-5. Developer contact email: your Gmail
-6. Save and continue through scopes and summary
-7. Add your own Gmail account in Test users
-
-Important: In testing mode, only test users can connect.
-
-### Step C: Enable Gmail API
-
-1. APIs & Services -> Library
-2. Search: Gmail API
-3. Click Enable
-
-### Step D: Create OAuth Client Credentials
-
-1. APIs & Services -> Credentials
-2. Create Credentials -> OAuth client ID
-3. Application type: Web application
-4. Name: PhishBERT Web Client
-
-### Step E: Add Authorized URLs
-
-For local development, add:
-
-- Authorized JavaScript origins:
-	- http://localhost:3000
-- Authorized redirect URIs:
-	- http://localhost:3000/auth/callback
-
-For deployed backend (example: Render), also add:
-
-- Authorized JavaScript origins:
-	- https://your-backend-domain.com
-- Authorized redirect URIs:
-	- https://your-backend-domain.com/auth/callback
-
-### Step F: Copy Client ID and Client Secret
-
-After creating credentials, copy:
-
-- Client ID
-- Client Secret
-
-Put them in `.env`:
+Set values in `.env`:
 
 ```env
-GOOGLE_CLIENT_ID=your_client_id_here
-GOOGLE_CLIENT_SECRET=your_client_secret_here
-```
-
-### Step G: Connect Gmail in App
-
-1. Start app with `npm run dev`
-2. Open Admin -> Integrations
-3. Click Connect Account on Google Workspace (Gmail)
-4. Approve Google permissions in popup
-5. On success, popup closes and integration becomes Connected
-
----
-
-## 4) Token Flow Explained (Where each token comes from)
-
-You do not need to manually generate tokens.
-
-- Client ID + Client Secret:
-	- Source: Google Cloud Console -> Credentials
-	- You copy these into `.env`
-
-- Authorization Code:
-	- Source: Google sends this to `/auth/callback` after you approve login
-
-- Access Token + Refresh Token:
-	- Source: Backend exchanges the Authorization Code with Google
-	- Stored automatically in `SystemSetting` table by backend
-
-To inspect stored values safely:
-
-```bash
-npx prisma studio
-```
-
-Open `SystemSetting` and verify:
-
-- `gmailConnected = true`
-- `gmailEmail` has your account
-- token columns are populated
-
-Never commit `.env` or token values.
-
----
-
-## 5) How Gmail Email Checking Works
-
-1. Connect Gmail via Integrations page
-2. Open the Integrations page (live scan feed)
-3. Backend requests Gmail messages, runs ML inference, stores results
-4. Admin dashboard shows threat metrics and recent phishing detections
-
-Tip: Use Force Sync in Integrations to refresh status manually.
-
----
-
-## 6) Netlify Deployment (Frontend) - Ready Setup
-
-This repo is prepared for Netlify frontend deploy via `netlify.toml`.
-
-### Important architecture note
-
-For reliable Gmail scanning, deploy frontend on Netlify and backend on an always-on Node host (Render/Railway/VPS).
-
-Reason:
-- Gmail scanning and DB token persistence are backend responsibilities.
-- Netlify static hosting is perfect for frontend, but OAuth callback + Gmail API operations should run on backend service.
-
-### Step-by-step (Frontend on Netlify)
-
-1. Push repo to GitHub
-2. In Netlify: Add new site -> Import from Git
-3. Build settings:
-	 - Build command: `npm run build`
-	 - Publish directory: `dist`
-4. Add environment variable in Netlify:
-	 - `VITE_API_BASE_URL=https://your-backend-domain.com`
-5. Deploy site
-
-### Backend CORS setting
-
-On your backend host, set:
-
-```env
-CORS_ORIGIN=https://your-netlify-site.netlify.app
-```
-
-If you use a custom domain, set that domain instead.
-
-### Update Google OAuth URLs for production
-
-In Google Cloud credentials, include backend production callback:
-
-- Authorized JavaScript origins: `https://your-backend-domain.com`
-- Authorized redirect URIs: `https://your-backend-domain.com/auth/callback`
-
----
-
-## 7) Environment Variables
-
-From `.env.example`:
-
-```env
-DATABASE_URL="file:./dev.db"
+SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
 VITE_API_BASE_URL=""
 
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
 
 HF_PHISHING_API_URL="https://alimusarizvi-phishing-email.hf.space/predict"
 CORS_ORIGIN="http://localhost:3000"
 ```
 
----
-
-## 8) Useful Commands
+### Start app
 
 ```bash
-# Local dev
 npm run dev
+```
 
-# Type-check
+Open: `http://localhost:3000`
+
+---
+
+## 3. Create Supabase Tables in Browser (and Seed Data)
+
+You asked to add tables in browser and create data from file.
+
+### Step-by-step
+
+1. Open Supabase Dashboard: `https://supabase.com/dashboard`
+2. Open your project
+3. Go to `SQL Editor`
+4. Open file `supabase/schema_and_seed.sql`
+5. Copy full SQL
+6. Paste into SQL Editor
+7. Click `Run`
+
+This creates and seeds:
+- `phish_users`
+- `phish_email_scans`
+- `phish_system_settings`
+- `phish_audit_logs`
+
+Migration status for your environment:
+- The schema has already been applied to your Supabase project `Browser Extension for Real-Time Website Security` (ref: `pllqinlgjkmmumfqlfjn`).
+- You can verify in Supabase Table Editor that `phish_system_settings` contains row `id = '1'`.
+
+It also inserts sample records.
+
+---
+
+## 4. How to Get Google Auth + Gmail API for Free (Beginner Friendly)
+
+You only need a free Google Cloud project.
+
+### A) Create Google Cloud Project
+
+1. Open `https://console.cloud.google.com`
+2. Top project selector -> `New Project`
+3. Name it (example: `PhishBERT`)
+4. Create
+
+### B) Configure OAuth Consent Screen
+
+1. `APIs & Services` -> `OAuth consent screen`
+2. User type: `External`
+3. Fill app name, support email, developer email
+4. Save and continue
+5. Add your Gmail to `Test users`
+
+### C) Enable Gmail API
+
+1. `APIs & Services` -> `Library`
+2. Search `Gmail API`
+3. Click `Enable`
+
+### D) Create OAuth Client ID
+
+1. `APIs & Services` -> `Credentials`
+2. `Create Credentials` -> `OAuth client ID`
+3. Application type: `Web application`
+4. Add Authorized URLs
+
+For local development:
+- Authorized JavaScript origins: `http://localhost:3000`
+- Authorized redirect URIs: `http://localhost:3000/auth/callback`
+
+For production backend (example):
+- Authorized JavaScript origins: `https://your-backend-domain.com`
+- Authorized redirect URIs: `https://your-backend-domain.com/auth/callback`
+
+5. Create
+6. Copy:
+- Client ID
+- Client Secret
+
+### E) Put Credentials in `.env`
+
+```env
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+```
+
+### F) Connect Gmail in App
+
+1. Start app (`npm run dev`)
+2. Open `Admin -> Integrations`
+3. Click `Connect Account` under Gmail
+4. Login and grant permission
+
+After success:
+- `system_settings.gmail_connected = true`
+- `gmail_access_token` / `gmail_refresh_token` are saved in Supabase
+
+---
+
+## 5. Token Flow (Simple Explanation)
+
+You do NOT manually generate tokens.
+
+1. You provide `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+2. Google redirects to `/auth/callback` with auth code
+3. Backend exchanges code for:
+- access token
+- refresh token
+4. Backend stores tokens in `phish_system_settings`
+5. Scanner uses tokens to read Gmail messages and score them
+
+---
+
+## 6. Netlify Deployment (Frontend)
+
+This repo includes `netlify.toml` for frontend deploy.
+
+### Important
+Gmail OAuth callback + inbox scanning must run on backend server (not static frontend alone).
+
+Recommended architecture:
+- Frontend: Netlify
+- Backend API (`server.ts`): Render/Railway/Fly.io/VPS
+- Database: Supabase
+
+### Netlify steps
+
+1. Import GitHub repo in Netlify
+2. Build command: `npm run build`
+3. Publish directory: `dist`
+4. Add env var in Netlify:
+
+```env
+VITE_API_BASE_URL="https://your-backend-domain.com"
+```
+
+5. Deploy
+
+### Backend env for CORS
+
+On backend host:
+
+```env
+CORS_ORIGIN="https://your-netlify-site.netlify.app"
+```
+
+If custom domain, use that domain.
+
+---
+
+## 7. Push New DB Changes to Supabase (When Schema Changes)
+
+For this project, easiest workflow is SQL Editor:
+
+1. Update SQL migration file(s) in repo
+2. Open Supabase SQL Editor
+3. Paste new SQL
+4. Run
+
+Current schema + seed file:
+- `supabase/schema_and_seed.sql`
+
+---
+
+## 8. Useful Commands
+
+```bash
+npm run dev
 npm run lint
-
-# Production frontend build
 npm run build
-
-# Open DB viewer
-npx prisma studio
 ```
 
 ---
 
-## 9) Troubleshooting
+## 9. Troubleshooting
 
-### OAuth popup closes but account not connected
+### `Supabase is not configured`
+Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 
-- Check redirect URI exactly matches your backend URL + `/auth/callback`
-- Ensure your Gmail is added as a Test User in OAuth consent screen
-- Ensure Gmail API is enabled in Google Cloud project
+### OAuth popup works but account not connected
+- Check redirect URI exactly matches (`/auth/callback`)
+- Ensure your email is in OAuth `Test users`
+- Ensure Gmail API is enabled
 
 ### CORS errors on deployed frontend
-
-- Set `CORS_ORIGIN` on backend to your Netlify domain
-- Verify frontend `VITE_API_BASE_URL` points to backend URL
-
-### No new Gmail messages appear
-
-- Keep Integrations page open while testing live scan feed
-- Verify `gmailConnected` in Prisma Studio
-- Check server logs for Gmail API errors
+- Set `VITE_API_BASE_URL` in Netlify
+- Set `CORS_ORIGIN` in backend env
 
 ---
 
-## 10) Security Notes
+## 10. Security Notes
 
-- Do not commit `.env`
-- Rotate Google client secret if leaked
-- Use HTTPS in production for frontend/backend
-- Restrict OAuth app to required scopes only
-
-
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` in frontend
+- Keep `.env` out of git
+- Use HTTPS in production
+- Rotate secrets if leaked

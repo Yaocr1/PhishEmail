@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Mail, 
@@ -72,14 +72,17 @@ export const Integrations = () => {
   const [integrations, setIntegrations] = useState<IntegrationCard[]>(defaultIntegrations);
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  const allowedMessageOrigins = new Set<string>([window.location.origin]);
-  if (API_BASE_URL) {
-    try {
-      allowedMessageOrigins.add(new URL(API_BASE_URL).origin);
-    } catch {
-      // ignore invalid URL values and continue with current origin only
+  const allowedMessageOrigins = useMemo(() => {
+    const origins = new Set<string>([window.location.origin]);
+    if (API_BASE_URL) {
+      try {
+        origins.add(new URL(API_BASE_URL).origin);
+      } catch {
+        // ignore invalid URL values and continue with current origin only
+      }
     }
-  }
+    return origins;
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -130,38 +133,53 @@ export const Integrations = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [refreshStatus]);
+  }, [allowedMessageOrigins, refreshStatus]);
 
-  // SSE Connection for Real-time Scanning
-  useEffect(() => {
+  const pollInbox = useCallback(async () => {
     if (!isGoogleConnected) {
       return;
     }
 
-    const eventSource = new EventSource(apiUrl('/api/scan/stream'));
-    eventSource.onmessage = (event) => {
-      const data: ScannedEmail = JSON.parse(event.data);
-      setLiveEmails((prev) => [data, ...prev].slice(0, 5));
+    const response = await fetch(apiUrl('/api/scan/poll'), { method: 'POST' });
+    if (!response.ok) {
+      throw new Error('Failed to poll inbox scan.');
+    }
 
+    const payload = await response.json();
+    const polledEmails: ScannedEmail[] = payload.emails || [];
+
+    setLiveEmails(polledEmails);
+
+    if (polledEmails.length > 0) {
       setIntegrations((prev) => prev.map((integration) => (
         integration.id === 'google-workspace'
           ? {
               ...integration,
               lastSync: 'Just now',
-              emailsProcessed: data.totalProcessed,
+              emailsProcessed: Number(payload.totalProcessed || polledEmails[0].totalProcessed || integration.emailsProcessed),
             }
           : integration
       )));
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-    };
-
-    return () => {
-      eventSource.close();
-    };
+    }
   }, [isGoogleConnected]);
+
+  useEffect(() => {
+    if (!isGoogleConnected) {
+      return;
+    }
+
+    pollInbox().catch((error) => {
+      console.error(error);
+    });
+
+    const timer = setInterval(() => {
+      pollInbox().catch((error) => {
+        console.error(error);
+      });
+    }, 10000);
+
+    return () => clearInterval(timer);
+  }, [isGoogleConnected, pollInbox]);
 
   const handleSync = async (id: string) => {
     if (id !== 'google-workspace') {
