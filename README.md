@@ -47,15 +47,24 @@ Set values in `.env`:
 ```env
 SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
+SUPABASE_ANON_KEY="" # optional fallback for quick setup, do not prefer in production
 VITE_API_BASE_URL=""
 APP_BASE_URL="http://localhost:3000"
+PORT="3000"
 
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 
 HF_PHISHING_API_URL="https://alimusarizvi-phishing-email.hf.space/predict"
 CORS_ORIGIN="http://localhost:3000"
+SCAN_INTERVAL_MS="10000"
 ```
+
+Where to get Supabase values:
+- Supabase Dashboard -> Project Settings -> Data API (or API)
+- Copy `Project URL` into `SUPABASE_URL`
+- Copy `service_role` key into `SUPABASE_SERVICE_ROLE_KEY` (recommended for backend)
+- If needed for quick setup, use `anon` key in `SUPABASE_ANON_KEY`
 
 ### Start app
 
@@ -231,6 +240,7 @@ Current schema + seed file:
 ## 8. Production-Ready Checklist
 
 - Backend has required env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `HF_PHISHING_API_URL`, `APP_BASE_URL`, `CORS_ORIGIN`
+- Optional fallback if service key is unavailable: `SUPABASE_ANON_KEY` (backend only; limited privileges may apply)
 - Frontend has `VITE_API_BASE_URL` set to your backend URL
 - Google OAuth client has exact production origin and callback URL
 - `CORS_ORIGIN` includes your deployed frontend domain

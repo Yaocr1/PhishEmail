@@ -7,8 +7,8 @@ import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import "dotenv/config";
 
-const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
+const supabaseServiceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "").trim();
 
 const supabase =
   supabaseUrl && supabaseServiceRoleKey
@@ -101,7 +101,7 @@ const oauthStates = new Map<string, number>();
 function getDb(): SupabaseClient {
   if (!supabase) {
     throw new Error(
-      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment."
+      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY) in your environment."
     );
   }
   return supabase;
@@ -577,7 +577,7 @@ function startScanningLoop() {
 
 async function startServer() {
   if (!supabase) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to start the server.");
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY) are required to start the server.");
   }
 
   const app = express();
