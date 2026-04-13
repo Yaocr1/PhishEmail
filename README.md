@@ -48,6 +48,7 @@ Set values in `.env`:
 SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
 VITE_API_BASE_URL=""
+APP_BASE_URL="http://localhost:3000"
 
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
@@ -134,6 +135,9 @@ For production backend (example):
 - Authorized JavaScript origins: `https://your-backend-domain.com`
 - Authorized redirect URIs: `https://your-backend-domain.com/auth/callback`
 
+Set this in backend env too:
+- `APP_BASE_URL="https://your-backend-domain.com"`
+
 5. Create
 6. Copy:
 - Client ID
@@ -154,7 +158,7 @@ GOOGLE_CLIENT_SECRET="..."
 4. Login and grant permission
 
 After success:
-- `system_settings.gmail_connected = true`
+- `phish_system_settings.gmail_connected = true`
 - `gmail_access_token` / `gmail_refresh_token` are saved in Supabase
 
 ---
@@ -224,7 +228,19 @@ Current schema + seed file:
 
 ---
 
-## 8. Useful Commands
+## 8. Production-Ready Checklist
+
+- Backend has required env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `HF_PHISHING_API_URL`, `APP_BASE_URL`, `CORS_ORIGIN`
+- Frontend has `VITE_API_BASE_URL` set to your backend URL
+- Google OAuth client has exact production origin and callback URL
+- `CORS_ORIGIN` includes your deployed frontend domain
+- Backend `/api/health` returns `status: ok`
+- Supabase table `phish_system_settings` has row `id = '1'`
+- Service role key is used only on backend (never in frontend)
+
+---
+
+## 9. Useful Commands
 
 ```bash
 npm run dev
@@ -234,7 +250,7 @@ npm run build
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### `Supabase is not configured`
 Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
@@ -250,7 +266,7 @@ Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`.
 
 ---
 
-## 10. Security Notes
+## 11. Security Notes
 
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` in frontend
 - Keep `.env` out of git

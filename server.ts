@@ -23,6 +23,8 @@ const supabase =
 const HF_API_URL = process.env.HF_PHISHING_API_URL || "https://alimusarizvi-phishing-email.hf.space/predict";
 const SCAN_INTERVAL_MS = Number(process.env.SCAN_INTERVAL_MS || 10000);
 const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const APP_BASE_URL = (process.env.APP_BASE_URL || "").trim().replace(/\/+$/, "");
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const CORS_ORIGINS = (process.env.CORS_ORIGIN || "")
   .split(",")
   .map((origin) => origin.trim())
@@ -86,14 +88,15 @@ let globalCredentials: {
   access_token?: string | null;
   refresh_token?: string | null;
   expiry_date?: number | null;
-  scope?: string | null;
-  token_type?: string | null;
+  scope?: string;
+  token_type?: string;
 } | null = null;
 let isScanning = false;
 let scanClients = new Set<express.Response>();
 let emailsProcessed = 0;
 let scanTimer: NodeJS.Timeout | null = null;
 const processedMessageIds = new Set<string>();
+const oauthStates = new Map<string, number>();
 
 function getDb(): SupabaseClient {
   if (!supabase) {
@@ -123,6 +126,64 @@ function resolveCorsOrigin(requestOrigin?: string) {
   }
 
   return CORS_ORIGINS[0];
+}
+
+function firstHeaderValue(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  if (typeof value === "string") {
+    return value.split(",")[0]?.trim();
+  }
+
+  return undefined;
+}
+
+function getPublicBaseUrl(req: express.Request) {
+  if (APP_BASE_URL) {
+    return APP_BASE_URL;
+  }
+
+  const protocol = firstHeaderValue(req.headers["x-forwarded-proto"]) || req.protocol;
+  const host = firstHeaderValue(req.headers["x-forwarded-host"]) || req.get("host") || "localhost:3000";
+  return `${protocol}://${host}`;
+}
+
+function getGoogleRedirectUri(req: express.Request) {
+  return `${getPublicBaseUrl(req)}/auth/callback`;
+}
+
+function pruneOAuthStates() {
+  const now = Date.now();
+  oauthStates.forEach((expiresAt, state) => {
+    if (expiresAt <= now) {
+      oauthStates.delete(state);
+    }
+  });
+}
+
+function createOAuthState() {
+  pruneOAuthStates();
+  const state = randomUUID();
+  oauthStates.set(state, Date.now() + OAUTH_STATE_TTL_MS);
+  return state;
+}
+
+function consumeOAuthState(state?: string | null) {
+  if (!state) {
+    return false;
+  }
+
+  pruneOAuthStates();
+  const expiresAt = oauthStates.get(state);
+
+  if (!expiresAt) {
+    return false;
+  }
+
+  oauthStates.delete(state);
+  return expiresAt > Date.now();
 }
 
 async function getSystemSetting(): Promise<SystemSettingRow> {
@@ -520,7 +581,8 @@ async function startServer() {
   }
 
   const app = express();
-  const PORT = 3000;
+  const configuredPort = Number(process.env.PORT || 3000);
+  const PORT = Number.isFinite(configuredPort) ? configuredPort : 3000;
   await bootstrapState();
 
   app.use(express.json({ limit: "1mb" }));
@@ -914,9 +976,8 @@ async function startServer() {
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID as string;
-    const host = req.get("host");
-    const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-    const redirectUri = `${protocol}://${host}/auth/callback`;
+    const redirectUri = getGoogleRedirectUri(req);
+    const state = createOAuthState();
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -925,6 +986,7 @@ async function startServer() {
       scope: GOOGLE_SCOPES.join(" "),
       access_type: "offline",
       prompt: "consent",
+      state,
     });
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -933,12 +995,22 @@ async function startServer() {
 
   app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
     const code = req.query.code as string;
+    const state = typeof req.query.state === "string" ? req.query.state : null;
+
+    if (!consumeOAuthState(state)) {
+      res.status(400).send(`
+        <html>
+          <body>
+            <p>Authentication failed. Please retry from the Integrations page.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
 
     if (code && hasGoogleOAuthConfig()) {
       try {
-        const host = req.get("host");
-        const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-        const redirectUri = `${protocol}://${host}/auth/callback`;
+        const redirectUri = getGoogleRedirectUri(req);
 
         const oauth2Client = getOAuthClient(redirectUri);
         const { tokens } = await oauth2Client.getToken(code);
@@ -975,8 +1047,8 @@ async function startServer() {
           access_token: accessToken,
           refresh_token: refreshToken,
           expiry_date: expiryDateIso ? new Date(expiryDateIso).getTime() : null,
-          scope: tokens.scope,
-          token_type: tokens.token_type,
+          scope: tokens.scope || undefined,
+          token_type: tokens.token_type || undefined,
         };
       } catch (error) {
         console.error("Error exchanging code for tokens:", error);
