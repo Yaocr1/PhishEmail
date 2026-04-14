@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { Home } from './pages/Home';
@@ -14,8 +14,12 @@ import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { AdminLayout } from './components/AdminLayout';
 import { Dashboard } from './pages/admin/Dashboard';
-import { Integrations } from './pages/admin/Integrations';
 import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/AuthContext';
+import { UsersManagement } from './pages/admin/UsersManagement';
+import { ThreatLog } from './pages/admin/ThreatLog';
+import { Analytics } from './pages/admin/Analytics';
+import { UserDashboard } from './pages/user/UserDashboard';
 
 // Layout for public pages
 const PublicLayout = () => (
@@ -27,6 +31,34 @@ const PublicLayout = () => (
     <Footer />
   </div>
 );
+
+const ProtectedAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isAdmin } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/user" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+const ProtectedUserRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isAdmin } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 export default function App() {
   return (
@@ -40,16 +72,29 @@ export default function App() {
             <Route path="/signup" element={<SignUp />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route
+              path="/user"
+              element={
+                <ProtectedUserRoute>
+                  <UserDashboard />
+                </ProtectedUserRoute>
+              }
+            />
           </Route>
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route
+            path="/admin"
+            element={
+              <ProtectedAdminRoute>
+                <AdminLayout />
+              </ProtectedAdminRoute>
+            }
+          >
             <Route index element={<Dashboard />} />
-            <Route path="integrations" element={<Integrations />} />
-            {/* Add placeholders for other admin routes to prevent 404s if clicked */}
-            <Route path="threats" element={<div className="text-white p-8">Threat Log (Coming Soon)</div>} />
-            <Route path="analytics" element={<div className="text-white p-8">Analytics (Coming Soon)</div>} />
-            <Route path="settings" element={<div className="text-white p-8">Settings (Coming Soon)</div>} />
+            <Route path="users" element={<UsersManagement />} />
+            <Route path="threats" element={<ThreatLog />} />
+            <Route path="analytics" element={<Analytics />} />
           </Route>
         </Routes>
       </BrowserRouter>

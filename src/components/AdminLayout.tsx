@@ -4,40 +4,34 @@ import { motion } from 'motion/react';
 import { 
   LayoutDashboard, 
   ShieldAlert, 
-  Settings, 
+  Users,
   LogOut,
   Bell,
   Search,
   Activity,
-  Plug,
   User
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
 const sidebarLinks = [
-  { icon: LayoutDashboard, label: 'Overview', path: '/admin', roles: ['Admin', 'Security Analyst'] },
-  { icon: ShieldAlert, label: 'Threat Log', path: '/admin/threats', roles: ['Admin', 'Security Analyst'] },
-  { icon: Plug, label: 'Integrations', path: '/admin/integrations', roles: ['Admin'] },
-  { icon: Activity, label: 'Analytics', path: '/admin/analytics', roles: ['Admin', 'Security Analyst'] },
-  { icon: Settings, label: 'Settings', path: '/admin/settings', roles: ['Admin'] },
+  { icon: LayoutDashboard, label: 'Overview', path: '/admin' },
+  { icon: Users, label: 'Users', path: '/admin/users' },
+  { icon: ShieldAlert, label: 'Threat Log', path: '/admin/threats' },
+  { icon: Activity, label: 'Analytics', path: '/admin/analytics' },
 ];
 
 export const AdminLayout = () => {
   const location = useLocation();
-  const { user, dashboardRole, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if current path is allowed for the role
-  const currentLink = sidebarLinks.find(link => link.path === location.pathname);
-  if (currentLink && !currentLink.roles.includes(dashboardRole)) {
-    return <Navigate to="/admin" replace />;
+  if (user.role !== 'ADMIN') {
+    return <Navigate to="/user" replace />;
   }
-
-  const visibleLinks = sidebarLinks.filter(link => link.roles.includes(dashboardRole));
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 flex font-sans selection:bg-neon-blue/30 selection:text-neon-blue">
@@ -52,7 +46,7 @@ export const AdminLayout = () => {
 
         <div className="flex-1 py-6 px-4 flex flex-col gap-2">
           <div className="text-xs font-mono text-gray-500 uppercase tracking-wider mb-2 px-2">Menu</div>
-          {visibleLinks.map((link) => {
+          {sidebarLinks.map((link) => {
             const isActive = location.pathname === link.path;
             const Icon = link.icon;
             return (
@@ -118,7 +112,7 @@ export const AdminLayout = () => {
               </div>
               <div className="text-sm">
                 <p className="font-medium text-gray-200">{user.email}</p>
-                <p className="text-xs text-neon-blue">{dashboardRole}</p>
+                <p className="text-xs text-neon-blue">Admin</p>
               </div>
             </div>
           </div>

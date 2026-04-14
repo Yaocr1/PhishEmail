@@ -4,11 +4,13 @@ import bcrypt from 'bcryptjs';
 const supabaseUrl = (process.env.SUPABASE_URL || '').trim();
 const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
 const HF_API_URL = process.env.HF_PHISHING_API_URL || 'https://alimusarizvi-phishing-email.hf.space/predict';
-const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
 const CORS_ORIGINS = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+const DEFAULT_ADMIN_EMAIL = (process.env.DEFAULT_ADMIN_EMAIL || 'admin@phishbert.app').trim().toLowerCase();
+const DEFAULT_ADMIN_PASSWORD = (process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@12345').trim();
 
 type NetlifyEvent = {
   path: string;
@@ -25,8 +27,6 @@ type NetlifyResult = {
   body: string;
 };
 
-type EmailProvider = 'GMAIL' | 'SIMULATION' | 'MANUAL';
-
 type NormalizedAnalysis = {
   label: 'phishing' | 'legitimate';
   confidence: number;
@@ -34,16 +34,9 @@ type NormalizedAnalysis = {
   requestId: string | null;
 };
 
-type ScannableEmail = {
-  id?: string;
-  subject: string;
-  sender: string;
-  snippet: string;
-  provider: EmailProvider;
-};
-
 type EmailScanRow = {
   id: string;
+  user_id: string | null;
   provider: string;
   subject: string;
   sender: string;
@@ -55,22 +48,17 @@ type EmailScanRow = {
   timestamp: string;
 };
 
-type SystemSettingRow = {
-  id: string;
-  phishing_threshold: number;
-  auto_block_enabled: boolean;
-  gmail_connected: boolean;
-  gmail_email: string | null;
-  gmail_access_token: string | null;
-  gmail_refresh_token: string | null;
-  gmail_expiry_date: string | null;
-};
-
 type UserRow = {
   id: string;
   email: string;
   password_hash: string | null;
   role: string;
+  created_at: string;
+};
+
+type SystemSettingRow = {
+  id: string;
+  phishing_threshold: number;
 };
 
 let dbClient: SupabaseClient | null = null;
@@ -115,8 +103,8 @@ function resolveCorsOrigin(headers: Record<string, string | undefined>) {
 function corsHeaders(origin: string) {
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-role',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
     'Content-Type': 'application/json',
   };
 }
@@ -126,17 +114,6 @@ function jsonResponse(statusCode: number, payload: unknown, origin: string): Net
     statusCode,
     headers: corsHeaders(origin),
     body: JSON.stringify(payload),
-  };
-}
-
-function htmlResponse(statusCode: number, html: string, origin: string): NetlifyResult {
-  return {
-    statusCode,
-    headers: {
-      ...corsHeaders(origin),
-      'Content-Type': 'text/html; charset=utf-8',
-    },
-    body: html,
   };
 }
 
@@ -172,6 +149,27 @@ function normalizeRoute(path: string) {
 function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0;
   return Math.max(0, Math.min(1, value));
+}
+
+function randomId(prefix: string) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}`;
+}
+
+function isAdminRequest(event: NetlifyEvent) {
+  const role = (firstHeaderValue(event.headers, 'x-user-role') || '').toUpperCase();
+  return role === 'ADMIN';
+}
+
+function parseLimit(value: string | undefined, fallback: number, max: number) {
+  const parsed = Number(value || fallback);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.min(parsed, max);
 }
 
 function fallbackHeuristic(subject: string, sender: string, snippet: string): NormalizedAnalysis {
@@ -278,22 +276,51 @@ async function getSystemSetting(): Promise<SystemSettingRow> {
   return inserted as SystemSettingRow;
 }
 
-async function getRecentScans(limit: number): Promise<EmailScanRow[]> {
+async function ensureDefaultAdmin() {
   const db = getDb();
+
   const { data, error } = await db
-    .from('phish_email_scans')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(limit);
+    .from('phish_users')
+    .select('id,role')
+    .eq('email', DEFAULT_ADMIN_EMAIL)
+    .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load recent scans: ${error.message}`);
+    throw new Error(`Failed to verify default admin: ${error.message}`);
   }
 
-  return (data || []) as EmailScanRow[];
+  if (data && String((data as { role: string }).role).toUpperCase() === 'ADMIN') {
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
+  if (!data) {
+    const { error: insertError } = await db.from('phish_users').insert({
+      email: DEFAULT_ADMIN_EMAIL,
+      password_hash: passwordHash,
+      role: 'ADMIN',
+    });
+
+    if (insertError) {
+      throw new Error(`Failed to create default admin: ${insertError.message}`);
+    }
+
+    return;
+  }
+
+  const existing = data as { id: string };
+  const { error: updateError } = await db
+    .from('phish_users')
+    .update({ role: 'ADMIN', password_hash: passwordHash })
+    .eq('id', existing.id);
+
+  if (updateError) {
+    throw new Error(`Failed to update default admin: ${updateError.message}`);
+  }
 }
 
-async function saveScan(email: ScannableEmail, analysis: NormalizedAnalysis): Promise<EmailScanRow> {
+async function saveScan(userId: string | null, subject: string, sender: string, snippet: string, analysis: NormalizedAnalysis) {
   const db = getDb();
   const setting = await getSystemSetting();
   const isPhishing = analysis.phishingProb >= setting.phishing_threshold;
@@ -301,16 +328,17 @@ async function saveScan(email: ScannableEmail, analysis: NormalizedAnalysis): Pr
   const { data: saved, error: saveError } = await db
     .from('phish_email_scans')
     .insert({
-      source_email_id: email.id || null,
-      provider: email.provider,
-      subject: email.subject,
-      sender: email.sender,
-      snippet: email.snippet,
+      source_email_id: randomId('manual'),
+      user_id: userId,
+      provider: 'MANUAL',
+      subject,
+      sender,
+      snippet,
       is_phishing: isPhishing,
       confidence: analysis.confidence,
       phishing_prob: analysis.phishingProb,
       label: analysis.label,
-      request_id: analysis.requestId || null,
+      request_id: analysis.requestId,
     })
     .select('*')
     .single();
@@ -322,70 +350,43 @@ async function saveScan(email: ScannableEmail, analysis: NormalizedAnalysis): Pr
   return saved as EmailScanRow;
 }
 
-function toDashboardFeed(scan: EmailScanRow, totalProcessed: number) {
+async function getRecentScans(limit: number, options?: { userId?: string; onlyThreats?: boolean }) {
+  const db = getDb();
+  let query = db.from('phish_email_scans').select('*');
+
+  if (options?.userId) {
+    query = query.eq('user_id', options.userId);
+  }
+
+  if (options?.onlyThreats) {
+    query = query.eq('is_phishing', true);
+  }
+
+  const { data, error } = await query.order('timestamp', { ascending: false }).limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to load scans: ${error.message}`);
+  }
+
+  return (data || []) as EmailScanRow[];
+}
+
+function toScanResponse(scan: EmailScanRow) {
   return {
     id: scan.id,
     subject: scan.subject,
     sender: scan.sender,
-    snippet: scan.snippet,
     timestamp: scan.timestamp,
-    analysis: {
-      isPhishing: scan.is_phishing,
-      confidence: scan.confidence,
-      threatType: scan.label === 'phishing' ? 'Credential Harvesting' : 'None',
-      phishingProb: scan.phishing_prob,
-    },
-    totalProcessed,
+    confidence: scan.confidence,
+    phishingProb: scan.phishing_prob,
+    isPhishing: scan.is_phishing,
+    label: scan.label,
+    provider: scan.provider,
   };
 }
 
-function getPublicBaseUrl(event: NetlifyEvent) {
-  const configured = (process.env.APP_BASE_URL || '').trim().replace(/\/+$/, '');
-  if (configured) {
-    return configured;
-  }
-
-  const proto = firstHeaderValue(event.headers, 'x-forwarded-proto') || 'https';
-  const host = firstHeaderValue(event.headers, 'x-forwarded-host') || firstHeaderValue(event.headers, 'host');
-
-  return host ? `${proto}://${host}` : 'http://localhost:3000';
-}
-
-async function exchangeGoogleCodeForTokens(code: string, redirectUri: string) {
-  const body = new URLSearchParams({
-    code,
-    client_id: process.env.GOOGLE_CLIENT_ID || '',
-    client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-    redirect_uri: redirectUri,
-    grant_type: 'authorization_code',
-  });
-
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Google token exchange failed with status ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function getGoogleProfileEmail(accessToken: string) {
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Gmail profile with status ${response.status}`);
-  }
-
-  const payload = (await response.json()) as { emailAddress?: string };
-  return payload.emailAddress || null;
+function normalizeUserRole(role: string) {
+  return String(role || '').toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
 }
 
 export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
@@ -405,32 +406,37 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
   const body = parseBody(event);
 
   try {
+    await ensureDefaultAdmin();
+
     if (route === '/health' && method === 'GET') {
-      return jsonResponse(200, { status: 'ok', database: supabaseUrl && supabaseKey ? 'supabase' : 'not-configured' }, origin);
+      return jsonResponse(
+        200,
+        {
+          status: 'ok',
+          database: supabaseUrl && supabaseKey ? 'supabase' : 'not-configured',
+          defaultAdmin: {
+            email: DEFAULT_ADMIN_EMAIL,
+            password: DEFAULT_ADMIN_PASSWORD,
+          },
+        },
+        origin
+      );
     }
 
     if (route === '/analyze' && method === 'POST') {
       const subject = String(body.subject || 'Manual Analysis').trim() || 'Manual Analysis';
       const sender = String(body.sender || 'manual@input').trim() || 'manual@input';
       const text = String(body.text || body.snippet || '').trim();
+      const userId = body.userId ? String(body.userId) : null;
 
       if (!text) {
         return jsonResponse(400, { error: 'Email text is required.' }, origin);
       }
 
       const analysis = await analyzeEmailAsync(subject, sender, text);
-      const saved = await saveScan(
-        {
-          id: `manual-${crypto.randomUUID()}`,
-          subject,
-          sender,
-          snippet: text.slice(0, 1200),
-          provider: 'MANUAL',
-        },
-        analysis
-      );
-
+      const saved = await saveScan(userId, subject, sender, text.slice(0, 1200), analysis);
       const setting = await getSystemSetting();
+
       return jsonResponse(
         200,
         {
@@ -446,48 +452,27 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
     }
 
     if (route === '/scans/recent' && method === 'GET') {
-      const limit = Math.min(Number(query.limit || 20), 100);
-      const scans = await getRecentScans(Number.isFinite(limit) ? limit : 20);
-
-      return jsonResponse(
-        200,
-        scans.map((scan) => ({
-          id: scan.id,
-          sender: scan.sender,
-          subject: scan.subject,
-          timestamp: scan.timestamp,
-          confidence: scan.confidence,
-          phishingProb: scan.phishing_prob,
-          isPhishing: scan.is_phishing,
-          label: scan.label,
-        })),
-        origin
-      );
+      const limit = parseLimit(query.limit, 20, 100);
+      const scans = await getRecentScans(limit);
+      return jsonResponse(200, scans.map(toScanResponse), origin);
     }
 
-    if (route === '/scan/poll' && method === 'POST') {
-      const db = getDb();
-      const [{ count, error: countError }, recentScans] = await Promise.all([
-        db.from('phish_email_scans').select('id', { count: 'exact', head: true }),
-        getRecentScans(5),
-      ]);
-
-      if (countError) {
-        throw new Error(countError.message);
+    if (route === '/user/scans' && method === 'GET') {
+      const userId = String(query.userId || '').trim();
+      if (!userId) {
+        return jsonResponse(400, { error: 'userId is required.' }, origin);
       }
 
-      const totalProcessed = count || 0;
-      return jsonResponse(
-        200,
-        {
-          emails: recentScans.map((scan) => toDashboardFeed(scan, totalProcessed)),
-          totalProcessed,
-        },
-        origin
-      );
+      const limit = parseLimit(query.limit, 20, 100);
+      const scans = await getRecentScans(limit, { userId });
+      return jsonResponse(200, scans.map(toScanResponse), origin);
     }
 
     if (route === '/dashboard/summary' && method === 'GET') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
+
       const db = getDb();
       const now = Date.now();
       const since24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
@@ -540,18 +525,7 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 4);
 
-      const { data: threatsData, error: threatsError } = await db
-        .from('phish_email_scans')
-        .select('*')
-        .eq('is_phishing', true)
-        .order('timestamp', { ascending: false })
-        .limit(5);
-
-      if (threatsError) {
-        throw new Error(threatsError.message);
-      }
-
-      const recentThreats = (threatsData || []) as EmailScanRow[];
+      const recentThreats = await getRecentScans(5, { onlyThreats: true });
 
       return jsonResponse(
         200,
@@ -577,62 +551,224 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
       );
     }
 
-    if (route === '/integrations/status' && method === 'GET') {
+    if (route === '/admin/users' && method === 'GET') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
+
       const db = getDb();
-      const [setting, latestScanResponse, totalCount] = await Promise.all([
-        getSystemSetting(),
-        db
-          .from('phish_email_scans')
-          .select('timestamp')
-          .eq('provider', 'GMAIL')
-          .order('timestamp', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        db.from('phish_email_scans').select('id', { count: 'exact', head: true }),
+      const [{ data: usersData, error: usersError }, { data: scansData, error: scansError }] = await Promise.all([
+        db.from('phish_users').select('id,email,role,created_at').order('created_at', { ascending: false }),
+        db.from('phish_email_scans').select('user_id'),
       ]);
 
-      if (latestScanResponse.error) {
-        throw new Error(latestScanResponse.error.message);
+      if (usersError) {
+        throw new Error(usersError.message);
       }
 
-      if (totalCount.error) {
-        throw new Error(totalCount.error.message);
+      if (scansError) {
+        throw new Error(scansError.message);
       }
 
+      const counts = new Map<string, number>();
+      (scansData || []).forEach((row) => {
+        const userId = (row as { user_id: string | null }).user_id;
+        if (userId) {
+          counts.set(userId, (counts.get(userId) || 0) + 1);
+        }
+      });
+
+      const users = (usersData || []).map((entry) => {
+        const row = entry as UserRow;
+        return {
+          id: row.id,
+          email: row.email,
+          role: normalizeUserRole(row.role),
+          createdAt: row.created_at,
+          scanCount: counts.get(row.id) || 0,
+        };
+      });
+
+      return jsonResponse(200, users, origin);
+    }
+
+    if (route === '/admin/users' && method === 'POST') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
+
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+
+      if (!email || !password) {
+        return jsonResponse(400, { error: 'Email and password are required.' }, origin);
+      }
+
+      if (password.length < 8) {
+        return jsonResponse(400, { error: 'Password must be at least 8 characters long.' }, origin);
+      }
+
+      if (email === DEFAULT_ADMIN_EMAIL) {
+        return jsonResponse(400, { error: 'Default admin account already exists and cannot be created here.' }, origin);
+      }
+
+      const db = getDb();
+      const { data: existing, error: existingError } = await db.from('phish_users').select('id').eq('email', email).maybeSingle();
+      if (existingError) {
+        throw new Error(existingError.message);
+      }
+
+      if (existing) {
+        return jsonResponse(409, { error: 'An account with this email already exists.' }, origin);
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const { data: created, error: createError } = await db
+        .from('phish_users')
+        .insert({ email, password_hash: passwordHash, role: 'USER' })
+        .select('id,email,role,created_at')
+        .single();
+
+      if (createError || !created) {
+        throw new Error(createError?.message || 'Unable to create user.');
+      }
+
+      const row = created as UserRow;
       return jsonResponse(
-        200,
+        201,
         {
-          gmail: {
-            connected: setting.gmail_connected,
-            email: setting.gmail_email,
-            lastSync: latestScanResponse.data?.timestamp || null,
-          },
-          totals: {
-            processed: totalCount.count || 0,
-          },
+          id: row.id,
+          email: row.email,
+          role: normalizeUserRole(row.role),
+          createdAt: row.created_at,
+          scanCount: 0,
         },
         origin
       );
     }
 
-    if (route === '/integrations/google/disconnect' && method === 'POST') {
-      const db = getDb();
-      const { error } = await db
-        .from('phish_system_settings')
-        .update({
-          gmail_connected: false,
-          gmail_email: null,
-          gmail_access_token: null,
-          gmail_refresh_token: null,
-          gmail_expiry_date: null,
-        })
-        .eq('id', '1');
+    const deleteUserMatch = route.match(/^\/admin\/users\/([^/]+)$/);
+    if (deleteUserMatch && method === 'DELETE') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
 
-      if (error) {
-        throw new Error(error.message);
+      const targetId = decodeURIComponent(deleteUserMatch[1]);
+      const db = getDb();
+
+      const { data: existing, error: existingError } = await db
+        .from('phish_users')
+        .select('id,email,role')
+        .eq('id', targetId)
+        .maybeSingle();
+
+      if (existingError) {
+        throw new Error(existingError.message);
+      }
+
+      if (!existing) {
+        return jsonResponse(404, { error: 'User not found.' }, origin);
+      }
+
+      const role = normalizeUserRole((existing as UserRow).role);
+      if (role === 'ADMIN') {
+        return jsonResponse(400, { error: 'Admin account cannot be deleted.' }, origin);
+      }
+
+      const { error: deleteError } = await db.from('phish_users').delete().eq('id', targetId);
+      if (deleteError) {
+        throw new Error(deleteError.message);
       }
 
       return jsonResponse(200, { ok: true }, origin);
+    }
+
+    if (route === '/admin/threats' && method === 'GET') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
+
+      const limit = parseLimit(query.limit, 100, 500);
+      const threats = await getRecentScans(limit, { onlyThreats: true });
+      return jsonResponse(
+        200,
+        threats.map((scan) => ({
+          ...toScanResponse(scan),
+          confidence: scan.confidence,
+        })),
+        origin
+      );
+    }
+
+    if (route === '/admin/analytics' && method === 'GET') {
+      if (!isAdminRequest(event)) {
+        return jsonResponse(403, { error: 'Admin access required.' }, origin);
+      }
+
+      const db = getDb();
+      const [usersCountRes, scansCountRes, threatsCountRes, last14DaysRes] = await Promise.all([
+        db.from('phish_users').select('id', { count: 'exact', head: true }),
+        db.from('phish_email_scans').select('id', { count: 'exact', head: true }),
+        db.from('phish_email_scans').select('id', { count: 'exact', head: true }).eq('is_phishing', true),
+        db
+          .from('phish_email_scans')
+          .select('sender,is_phishing,timestamp')
+          .gte('timestamp', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
+          .order('timestamp', { ascending: true })
+          .limit(5000),
+      ]);
+
+      if (usersCountRes.error || scansCountRes.error || threatsCountRes.error || last14DaysRes.error) {
+        throw new Error(
+          usersCountRes.error?.message ||
+            scansCountRes.error?.message ||
+            threatsCountRes.error?.message ||
+            last14DaysRes.error?.message ||
+            'Failed to build analytics.'
+        );
+      }
+
+      const totalUsers = usersCountRes.count || 0;
+      const totalScans = scansCountRes.count || 0;
+      const totalThreats = threatsCountRes.count || 0;
+      const threatRate = totalScans === 0 ? 0 : totalThreats / totalScans;
+
+      const scansByDayMap = new Map<string, { day: string; scans: number; threats: number }>();
+      const senderMap = new Map<string, number>();
+
+      (last14DaysRes.data || []).forEach((row) => {
+        const item = row as { sender: string; is_phishing: boolean; timestamp: string };
+        const day = new Date(item.timestamp).toISOString().slice(5, 10);
+
+        const bucket = scansByDayMap.get(day) || { day, scans: 0, threats: 0 };
+        bucket.scans += 1;
+        if (item.is_phishing) {
+          bucket.threats += 1;
+          senderMap.set(item.sender, (senderMap.get(item.sender) || 0) + 1);
+        }
+        scansByDayMap.set(day, bucket);
+      });
+
+      const scansByDay = Array.from(scansByDayMap.values());
+      const topSenders = Array.from(senderMap.entries())
+        .map(([sender, threats]) => ({ sender, threats }))
+        .sort((a, b) => b.threats - a.threats)
+        .slice(0, 8);
+
+      return jsonResponse(
+        200,
+        {
+          totals: {
+            users: totalUsers,
+            scans: totalScans,
+            threats: totalThreats,
+            threatRate,
+          },
+          scansByDay,
+          topSenders,
+        },
+        origin
+      );
     }
 
     if (route === '/auth/signup' && method === 'POST') {
@@ -645,6 +781,10 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
 
       if (password.length < 8) {
         return jsonResponse(400, { error: 'Password must be at least 8 characters long.' }, origin);
+      }
+
+      if (email === DEFAULT_ADMIN_EMAIL) {
+        return jsonResponse(403, { error: 'Admin account cannot be created from signup.' }, origin);
       }
 
       const db = getDb();
@@ -709,7 +849,7 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
         {
           id: castedUser.id,
           email: castedUser.email,
-          role: castedUser.role,
+          role: normalizeUserRole(castedUser.role),
         },
         origin
       );
@@ -735,104 +875,6 @@ export const handler = async (event: NetlifyEvent): Promise<NetlifyResult> => {
       }
 
       return jsonResponse(201, { ok: true }, origin);
-    }
-
-    if (route === '/auth/google/url' && method === 'GET') {
-      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-        return jsonResponse(
-          400,
-          { error: 'Google OAuth credentials are missing. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' },
-          origin
-        );
-      }
-
-      const baseUrl = getPublicBaseUrl(event);
-      const redirectUri = `${baseUrl}/auth/callback`;
-
-      const params = new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: GOOGLE_SCOPES.join(' '),
-        access_type: 'offline',
-        prompt: 'consent',
-      });
-
-      return jsonResponse(200, { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` }, origin);
-    }
-
-    if (route === '/auth/callback' && method === 'GET') {
-      const code = String(query.code || '');
-      let connected = false;
-
-      if (code && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-        try {
-          const baseUrl = getPublicBaseUrl(event);
-          const redirectUri = `${baseUrl}/auth/callback`;
-          const tokens = await exchangeGoogleCodeForTokens(code, redirectUri);
-
-          const accessToken = String(tokens.access_token || '');
-          const refreshToken = String(tokens.refresh_token || '');
-          const expiryDateIso = tokens.expires_in
-            ? new Date(Date.now() + Number(tokens.expires_in) * 1000).toISOString()
-            : null;
-
-          const gmailEmail = accessToken ? await getGoogleProfileEmail(accessToken) : null;
-
-          const db = getDb();
-          const setting = await getSystemSetting();
-
-          const { error } = await db
-            .from('phish_system_settings')
-            .update({
-              gmail_connected: true,
-              gmail_email: gmailEmail || setting.gmail_email,
-              gmail_access_token: accessToken || setting.gmail_access_token,
-              gmail_refresh_token: refreshToken || setting.gmail_refresh_token,
-              gmail_expiry_date: expiryDateIso || setting.gmail_expiry_date,
-            })
-            .eq('id', '1');
-
-          if (error) {
-            throw new Error(error.message);
-          }
-
-          connected = true;
-        } catch {
-          connected = false;
-        }
-      }
-
-      const html = connected
-        ? `
-          <html>
-            <body>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: 'google' }, '*');
-                  window.close();
-                } else {
-                  window.location.href = '/admin/integrations';
-                }
-              </script>
-              <p>Authentication successful. This window should close automatically.</p>
-            </body>
-          </html>
-        `
-        : `
-          <html>
-            <body>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({ type: 'OAUTH_AUTH_FAILURE', provider: 'google' }, '*');
-                }
-              </script>
-              <p>Authentication failed. Please retry from the Integrations page.</p>
-            </body>
-          </html>
-        `;
-
-      return htmlResponse(200, html, origin);
     }
 
     return jsonResponse(404, { error: 'Route not found.' }, origin);

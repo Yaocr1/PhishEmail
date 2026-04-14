@@ -343,7 +343,7 @@ const TechSpecs = () => {
           >
             <Code className="text-neon-blue mb-4" size={32} />
             <h3 className="text-xl font-semibold mb-2 font-display">Backend Stack</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">Express + TypeScript API with Supabase persistence, Gmail OAuth integration, and polling-based inbox scanning.</p>
+            <p className="text-gray-400 text-sm leading-relaxed">Express + TypeScript API with Supabase persistence for user scans, admin threat logs, and analytics.</p>
           </motion.div>
           
           <motion.div 

@@ -15,12 +15,6 @@
   force = true
 
 [[redirects]]
-  from = "/auth/callback"
-  to = "/.netlify/functions/api/auth/callback"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

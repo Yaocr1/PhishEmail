@@ -22,6 +22,7 @@ import {
   Bar
 } from 'recharts';
 import { apiUrl, getApiErrorMessage } from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface DashboardSummary {
   stats: {
@@ -76,6 +77,7 @@ const formatRelative = (value: string) => {
 };
 
 export const Dashboard = () => {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,11 @@ export const Dashboard = () => {
   const loadSummary = async () => {
     try {
       setError(null);
-      const response = await fetch(apiUrl('/api/dashboard/summary'));
+      const response = await fetch(apiUrl('/api/dashboard/summary'), {
+        headers: {
+          'x-user-role': user?.role || '',
+        },
+      });
       if (!response.ok) {
         throw new Error(getApiErrorMessage('Failed to load dashboard data.', null, response.status));
       }
@@ -97,10 +103,15 @@ export const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     loadSummary();
     const interval = setInterval(loadSummary, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id]);
 
   const chartData = useMemo(() => {
     if (summary.chart.length > 0) {
@@ -328,7 +339,7 @@ export const Dashboard = () => {
               </tbody>
             </table>
             {!isLoading && summary.recentThreats.length === 0 && (
-              <div className="p-6 text-sm text-gray-500">No phishing emails detected yet. Connect Gmail and start scanning to populate this table.</div>
+              <div className="p-6 text-sm text-gray-500">No phishing emails detected yet. As users submit scans, threat records will appear here.</div>
             )}
           </div>
         )}

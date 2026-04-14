@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useMemo, useState, ReactNode } from 'react';
 
 export type UserRole = 'ADMIN' | 'USER';
-export type DashboardRole = 'Admin' | 'Security Analyst';
 
 export interface AuthUser {
   id: string;
@@ -12,7 +11,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  dashboardRole: DashboardRole;
+  isAdmin: boolean;
   login: (user: AuthUser) => void;
   logout: () => void;
 }
@@ -60,17 +59,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const dashboardRole: DashboardRole = user?.role === 'ADMIN' ? 'Admin' : 'Security Analyst';
+  const isAdmin = user?.role === 'ADMIN';
 
   const contextValue = useMemo(
     () => ({
       user,
       isAuthenticated: Boolean(user),
-      dashboardRole,
+      isAdmin,
       login,
       logout,
     }),
-    [dashboardRole, user]
+    [isAdmin, user]
   );
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;

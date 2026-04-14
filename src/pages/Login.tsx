@@ -41,7 +41,9 @@ export const Login = () => {
         role: normalizedRole,
       });
 
-      navigate('/admin');
+        navigate(normalizedRole === 'ADMIN' ? '/admin' : '/user');
+      
+      
     } catch (loginError) {
       setError(getApiErrorMessage('Login failed.', loginError));
     } finally {
@@ -64,6 +66,7 @@ export const Login = () => {
           </div>
           <h1 className="text-2xl font-bold font-display text-white mb-2">Welcome Back</h1>
           <p className="text-gray-400 text-sm">Single login for both admin and user accounts.</p>
+          <p className="text-xs text-gray-500 mt-3">Default admin: admin@phishbert.app / Admin@12345</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
