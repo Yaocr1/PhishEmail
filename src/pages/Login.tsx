@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Mail, Lock, ArrowRight } from 'lucide-react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, getApiErrorMessage } from '../lib/api';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -26,13 +26,13 @@ export const Login = () => {
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: 'Login failed.' }));
-        throw new Error(payload.error || 'Login failed.');
+        const payload = await response.json().catch(() => ({ error: getApiErrorMessage('Login failed.', null, response.status) }));
+        throw new Error(payload.error || getApiErrorMessage('Login failed.', null, response.status));
       }
 
       navigate('/admin');
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'Login failed.');
+      setError(getApiErrorMessage('Login failed.', loginError));
     } finally {
       setIsSubmitting(false);
     }

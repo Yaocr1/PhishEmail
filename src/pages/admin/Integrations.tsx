@@ -12,7 +12,7 @@ import {
   Power,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { API_BASE_URL, apiUrl } from '../../lib/api';
+import { API_BASE_URL, apiUrl, getApiErrorMessage } from '../../lib/api';
 
 interface ScannedEmail {
   id: string;
@@ -109,7 +109,7 @@ export const Integrations = () => {
         };
       }));
     } catch (error) {
-      setStatusError(error instanceof Error ? error.message : 'Unable to load integration status.');
+      setStatusError(getApiErrorMessage('Unable to load integration status.', error));
     }
   }, []);
 
@@ -198,12 +198,20 @@ export const Integrations = () => {
       return;
     }
 
-    await fetch(apiUrl('/api/integrations/google/disconnect'), {
-      method: 'POST',
-    });
+    try {
+      const response = await fetch(apiUrl('/api/integrations/google/disconnect'), {
+        method: 'POST',
+      });
 
-    setLiveEmails([]);
-    refreshStatus();
+      if (!response.ok) {
+        throw new Error(getApiErrorMessage('Failed to disconnect Gmail.', null, response.status));
+      }
+
+      setLiveEmails([]);
+      refreshStatus();
+    } catch (error) {
+      setStatusError(getApiErrorMessage('Failed to disconnect Gmail.', error));
+    }
   };
 
   const handleConnect = async (providerId: string) => {
@@ -233,7 +241,7 @@ export const Integrations = () => {
       }
     } catch (error) {
       console.error('OAuth error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to initiate connection.');
+      alert(getApiErrorMessage('Failed to initiate Google OAuth.', error));
     }
   };
 
@@ -438,14 +446,14 @@ export const Integrations = () => {
           <div>
             <h3 className="text-lg font-semibold text-white mb-2">How Integration Works</h3>
             <p className="text-sm text-gray-400 mb-6 max-w-3xl leading-relaxed">
-              PhishBERT uses OAuth 2.0 to securely connect to your email provider. We set up real-time webhooks (Pub/Sub for Google, Graph Subscriptions for Microsoft) to receive notifications the moment an email arrives. The email is fetched, analyzed by our BERT model in memory, and if flagged as phishing, it is automatically moved to quarantine or tagged with a warning label before the user even opens it.
+              PhishBERT uses OAuth 2.0 to securely connect your Gmail inbox. The backend polls recent inbox messages on a short interval, scores each message through the phishing model endpoint, and saves scan results so the dashboard and live feed stay in sync.
             </p>
             
             <div className="bg-[#0a0a0a] border border-white/5 rounded-xl p-4 flex items-start gap-3">
               <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" size={18} />
               <div className="text-sm">
                 <span className="text-gray-200 font-medium">Privacy First: </span>
-                <span className="text-gray-400">Emails are processed entirely in memory and are never stored on our servers. We only retain metadata (sender domain, timestamp, risk score) for your dashboard analytics.</span>
+                <span className="text-gray-400">The backend stores limited scan records (subject, sender, snippet, risk score, timestamp) in Supabase so users can review history and analytics. OAuth tokens remain backend-only.</span>
               </div>
             </div>
           </div>

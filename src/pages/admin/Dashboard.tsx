@@ -21,7 +21,7 @@ import {
   BarChart,
   Bar
 } from 'recharts';
-import { apiUrl } from '../../lib/api';
+import { apiUrl, getApiErrorMessage } from '../../lib/api';
 
 interface DashboardSummary {
   stats: {
@@ -85,12 +85,12 @@ export const Dashboard = () => {
       setError(null);
       const response = await fetch(apiUrl('/api/dashboard/summary'));
       if (!response.ok) {
-        throw new Error('Failed to load dashboard data.');
+        throw new Error(getApiErrorMessage('Failed to load dashboard data.', null, response.status));
       }
       const payload = await response.json();
       setSummary(payload);
     } catch (dashboardError) {
-      setError(dashboardError instanceof Error ? dashboardError.message : 'Failed to load dashboard data.');
+      setError(getApiErrorMessage('Failed to load dashboard data.', dashboardError));
     } finally {
       setIsLoading(false);
     }

@@ -4,7 +4,124 @@ import {
   Shield, Zap, Layers, Brain, Search, Lock, 
   Code, AlertTriangle, CheckCircle, ArrowRight, Activity 
 } from 'lucide-react';
-import { apiUrl } from '../lib/api';
+import { API_BASE_URL, HF_FALLBACK_URL, apiUrl, getApiErrorMessage } from '../lib/api';
+
+type DemoAnalysisResult = {
+  id: string;
+  label: string;
+  confidence: number;
+  phishingProb: number;
+  isPhishing: boolean;
+  threshold: number;
+};
+
+type NormalizedModelResult = {
+  label: 'phishing' | 'legitimate';
+  confidence: number;
+  phishingProb: number;
+};
+
+const DEMO_THRESHOLD = 0.6;
+
+const clamp01 = (value: number) => {
+  if (Number.isNaN(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+};
+
+const createLocalId = (prefix: string) => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}`;
+};
+
+const normalizeModelOutput = (payload: any): NormalizedModelResult => {
+  const candidate = Array.isArray(payload) ? payload[0] : payload;
+  const rawLabel = String(candidate?.label || candidate?.class || '').toLowerCase();
+  const phishingByLabel = rawLabel.includes('phish');
+
+  const phishingProb = clamp01(
+    Number(candidate?.phishing_prob ?? (phishingByLabel ? candidate?.score : undefined) ?? candidate?.probability ?? 0)
+  );
+
+  const label: 'phishing' | 'legitimate' = phishingByLabel || phishingProb >= 0.5 ? 'phishing' : 'legitimate';
+  const confidence = clamp01(Number(candidate?.confidence ?? (label === 'phishing' ? phishingProb : 1 - phishingProb)));
+
+  return {
+    label,
+    confidence,
+    phishingProb,
+  };
+};
+
+const heuristicResult = (subject: string, sender: string, text: string): DemoAnalysisResult => {
+  const lowercaseText = `${subject} ${sender} ${text}`.toLowerCase();
+  const suspiciousTerms = [
+    'urgent',
+    'verify',
+    'account',
+    'suspend',
+    'password',
+    'click',
+    'login',
+    'security alert',
+    'payment method',
+    'wire transfer',
+    'bank',
+  ];
+
+  let score = 0.1;
+  suspiciousTerms.forEach((term) => {
+    if (lowercaseText.includes(term)) {
+      score += 0.08;
+    }
+  });
+
+  if (lowercaseText.includes('http://') || lowercaseText.includes('bit.ly') || lowercaseText.includes('tinyurl')) {
+    score += 0.2;
+  }
+
+  const phishingProb = clamp01(score);
+  const label = phishingProb >= DEMO_THRESHOLD ? 'phishing' : 'legitimate';
+  const confidence = label === 'phishing' ? phishingProb : clamp01(1 - phishingProb);
+
+  return {
+    id: createLocalId('heuristic'),
+    label,
+    confidence,
+    phishingProb,
+    isPhishing: phishingProb >= DEMO_THRESHOLD,
+    threshold: DEMO_THRESHOLD,
+  };
+};
+
+const fromBackendPayload = (payload: any): DemoAnalysisResult => {
+  const threshold = clamp01(Number(payload?.threshold ?? DEMO_THRESHOLD));
+  const phishingProb = clamp01(Number(payload?.phishingProb ?? payload?.phishing_prob ?? 0));
+  const confidence = clamp01(Number(payload?.confidence ?? (phishingProb >= threshold ? phishingProb : 1 - phishingProb)));
+  const isPhishing = typeof payload?.isPhishing === 'boolean' ? payload.isPhishing : phishingProb >= threshold;
+
+  return {
+    id: String(payload?.id || createLocalId('backend')),
+    label: String(payload?.label || (isPhishing ? 'phishing' : 'legitimate')),
+    confidence,
+    phishingProb,
+    isPhishing,
+    threshold,
+  };
+};
+
+const fromModelPayload = (payload: any): DemoAnalysisResult => {
+  const normalized = normalizeModelOutput(payload);
+  return {
+    id: createLocalId('model'),
+    label: normalized.label,
+    confidence: normalized.confidence,
+    phishingProb: normalized.phishingProb,
+    isPhishing: normalized.phishingProb >= DEMO_THRESHOLD,
+    threshold: DEMO_THRESHOLD,
+  };
+};
 
 const Hero = () => {
   return (
@@ -186,11 +303,11 @@ const HowItWorks = () => {
                   <div className="w-3 h-3 rounded-full bg-green-500/80" />
                 </div>
                 <div className="space-y-2">
-                  <p><span className="text-neon-blue">POST</span> /api/v1/analyze</p>
+                  <p><span className="text-neon-blue">POST</span> /api/analyze</p>
                   <p className="text-gray-500">{`{`}</p>
                   <p className="pl-4"><span className="text-neon-green">"sender"</span>: "security@paypal-update-alert.com",</p>
                   <p className="pl-4"><span className="text-neon-green">"subject"</span>: "Action Required: Account Suspended",</p>
-                  <p className="pl-4"><span className="text-neon-green">"body"</span>: "Dear user, please click here to verify..."</p>
+                  <p className="pl-4"><span className="text-neon-green">"text"</span>: "Dear user, please click here to verify..."</p>
                   <p className="text-gray-500">{`}`}</p>
                   <p className="text-yellow-500 mt-4">Processing via BERT model...</p>
                   <p className="text-gray-500 mt-4">{`{`}</p>
@@ -226,7 +343,7 @@ const TechSpecs = () => {
           >
             <Code className="text-neon-blue mb-4" size={32} />
             <h3 className="text-xl font-semibold mb-2 font-display">Backend Stack</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">High-performance REST API built with Python and Flask, ensuring low latency and seamless integration.</p>
+            <p className="text-gray-400 text-sm leading-relaxed">Express + TypeScript API with Supabase persistence, Gmail OAuth integration, and polling-based inbox scanning.</p>
           </motion.div>
           
           <motion.div 
@@ -250,7 +367,7 @@ const TechSpecs = () => {
           >
             <Lock className="text-neon-blue mb-4" size={32} />
             <h3 className="text-xl font-semibold mb-2 font-display">Data Privacy</h3>
-            <p className="text-gray-400 text-sm leading-relaxed">Strict GDPR-compliant data handling with zero-retention processing. Emails are analyzed in memory and immediately discarded.</p>
+            <p className="text-gray-400 text-sm leading-relaxed">OAuth tokens stay backend-only and scan records are stored in Supabase for traceable dashboard analytics and audit visibility.</p>
           </motion.div>
         </div>
       </div>
@@ -260,18 +377,12 @@ const TechSpecs = () => {
 
 const DemoSection = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<null | {
-    id: string;
-    label: string;
-    confidence: number;
-    phishingProb: number;
-    isPhishing: boolean;
-    threshold: number;
-  }>(null);
+  const [result, setResult] = useState<DemoAnalysisResult | null>(null);
   const [emailText, setEmailText] = useState('');
   const [subject, setSubject] = useState('Manual Inbox Check');
   const [sender, setSender] = useState('unknown.sender@email.test');
   const [error, setError] = useState<string | null>(null);
+  const [analysisNotice, setAnalysisNotice] = useState<string | null>(null);
 
   const buildIndicators = () => {
     const text = emailText.toLowerCase();
@@ -289,7 +400,11 @@ const DemoSection = () => {
     if (!emailText.trim()) return;
     setIsAnalyzing(true);
     setError(null);
+    setAnalysisNotice(null);
     setResult(null);
+
+    let backendFailure: unknown = null;
+    let backendStatus: number | undefined;
     
     try {
       const response = await fetch(apiUrl('/api/analyze'), {
@@ -305,14 +420,42 @@ const DemoSection = () => {
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: 'Analysis request failed.' }));
-        throw new Error(payload.error || 'Analysis request failed.');
+        backendStatus = response.status;
+        const payload = await response.json().catch(() => ({ error: getApiErrorMessage('Analysis request failed.', null, response.status) }));
+        throw new Error(payload.error || getApiErrorMessage('Analysis request failed.', null, response.status));
       }
 
       const payload = await response.json();
-      setResult(payload);
+      setResult(fromBackendPayload(payload));
+      if (!API_BASE_URL) {
+        setAnalysisNotice('Running with same-origin API path. For Netlify deployments, set VITE_API_BASE_URL to your backend URL.');
+      }
+      return;
     } catch (analysisError) {
-      setError(analysisError instanceof Error ? analysisError.message : 'Unable to analyze email right now.');
+      backendFailure = analysisError;
+    }
+
+    try {
+      const fallbackResponse = await fetch(HF_FALLBACK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: `Subject: ${subject}\nSender: ${sender}\n\n${emailText}`.substring(0, 15000) }),
+      });
+
+      if (!fallbackResponse.ok) {
+        throw new Error(`Model endpoint responded with status ${fallbackResponse.status}.`);
+      }
+
+      const fallbackPayload = await fallbackResponse.json();
+      setResult(fromModelPayload(fallbackPayload));
+      setAnalysisNotice('Backend API was unreachable, so this result was generated directly from the deployed model endpoint for live demo continuity.');
+    } catch {
+      setResult(heuristicResult(subject, sender, emailText));
+      setAnalysisNotice(
+        `Backend and model endpoint were unreachable. A local heuristic estimate is shown so the demo remains usable. ${getApiErrorMessage('Live backend request failed.', backendFailure, backendStatus)}`
+      );
     } finally {
       setIsAnalyzing(false);
     }
@@ -404,6 +547,12 @@ const DemoSection = () => {
             {error && (
               <div className="mt-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                 {error}
+              </div>
+            )}
+
+            {analysisNotice && (
+              <div className="mt-4 px-4 py-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-sm">
+                {analysisNotice}
               </div>
             )}
             

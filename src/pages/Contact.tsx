@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, MessageSquare, Send, MapPin } from 'lucide-react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, getApiErrorMessage } from '../lib/api';
 
 export const Contact = () => {
   const [formData, setFormData] = useState({
@@ -28,8 +28,8 @@ export const Contact = () => {
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: 'Unable to send message.' }));
-        throw new Error(payload.error || 'Unable to send message.');
+        const payload = await response.json().catch(() => ({ error: getApiErrorMessage('Unable to send message.', null, response.status) }));
+        throw new Error(payload.error || getApiErrorMessage('Unable to send message.', null, response.status));
       }
 
       setIsSubmitting(false);
@@ -37,7 +37,7 @@ export const Contact = () => {
       setFormData({ name: '', email: '', message: '' });
     } catch (submitError) {
       setIsSubmitting(false);
-      setError(submitError instanceof Error ? submitError.message : 'Unable to send message.');
+      setError(getApiErrorMessage('Unable to send message.', submitError));
     }
   };
 

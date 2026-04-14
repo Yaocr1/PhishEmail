@@ -48,7 +48,8 @@ Set values in `.env`:
 SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
 SUPABASE_ANON_KEY="" # optional fallback for quick setup, do not prefer in production
-VITE_API_BASE_URL=""
+VITE_API_BASE_URL="http://localhost:3000"
+VITE_HF_FALLBACK_URL="https://alimusarizvi-phishing-email.hf.space/predict"
 APP_BASE_URL="http://localhost:3000"
 PORT="3000"
 
@@ -207,7 +208,10 @@ Recommended architecture:
 
 ```env
 VITE_API_BASE_URL="https://your-backend-domain.com"
+VITE_HF_FALLBACK_URL="https://alimusarizvi-phishing-email.hf.space/predict"
 ```
+
+If backend is temporarily unavailable, the Home page demo falls back to `VITE_HF_FALLBACK_URL` so the live analysis button still works.
 
 5. Deploy
 

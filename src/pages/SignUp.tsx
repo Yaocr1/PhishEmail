@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { apiUrl } from '../lib/api';
+import { apiUrl, getApiErrorMessage } from '../lib/api';
 
 export const SignUp = () => {
   const navigate = useNavigate();
@@ -27,13 +27,13 @@ export const SignUp = () => {
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({ error: 'Sign-up failed.' }));
-        throw new Error(payload.error || 'Sign-up failed.');
+        const payload = await response.json().catch(() => ({ error: getApiErrorMessage('Sign-up failed.', null, response.status) }));
+        throw new Error(payload.error || getApiErrorMessage('Sign-up failed.', null, response.status));
       }
 
       navigate('/login');
     } catch (signupError) {
-      setError(signupError instanceof Error ? signupError.message : 'Sign-up failed.');
+      setError(getApiErrorMessage('Sign-up failed.', signupError));
     } finally {
       setIsSubmitting(false);
     }
