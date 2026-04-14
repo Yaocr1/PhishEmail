@@ -10,10 +10,10 @@ import {
   Search,
   Activity,
   Plug,
-  ChevronDown
+  User
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { useAuth, Role } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: 'Overview', path: '/admin', roles: ['Admin', 'Security Analyst'] },
@@ -25,16 +25,19 @@ const sidebarLinks = [
 
 export const AdminLayout = () => {
   const location = useLocation();
-  const { role, setRole } = useAuth();
-  const [showRoleMenu, setShowRoleMenu] = React.useState(false);
+  const { user, dashboardRole, logout } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   // Check if current path is allowed for the role
   const currentLink = sidebarLinks.find(link => link.path === location.pathname);
-  if (currentLink && !currentLink.roles.includes(role)) {
+  if (currentLink && !currentLink.roles.includes(dashboardRole)) {
     return <Navigate to="/admin" replace />;
   }
 
-  const visibleLinks = sidebarLinks.filter(link => link.roles.includes(role));
+  const visibleLinks = sidebarLinks.filter(link => link.roles.includes(dashboardRole));
 
   return (
     <div className="min-h-screen bg-[#050505] text-gray-200 flex font-sans selection:bg-neon-blue/30 selection:text-neon-blue">
@@ -75,7 +78,10 @@ export const AdminLayout = () => {
         </div>
 
         <div className="p-4 border-t border-white/5">
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 w-full">
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 w-full"
+          >
             <LogOut size={18} />
             Sign Out
           </button>
@@ -103,52 +109,17 @@ export const AdminLayout = () => {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-neon-red animate-pulse" />
             </button>
             <div className="w-px h-6 bg-white/10" />
-            
-            {/* Role Switcher */}
-            <div className="relative">
-              <div 
-                className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setShowRoleMenu(!showRoleMenu)}
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-neon-blue to-neon-purple p-[1px]">
-                  <div className="w-full h-full rounded-full bg-[#111] flex items-center justify-center text-xs font-bold">
-                    {role === 'Admin' ? 'AD' : 'SA'}
-                  </div>
-                </div>
-                <div className="text-sm flex items-center gap-2">
-                  <div>
-                    <p className="font-medium text-gray-200 group-hover:text-white transition-colors">Demo User</p>
-                    <p className="text-xs text-neon-blue">{role}</p>
-                  </div>
-                  <ChevronDown size={14} className="text-gray-500 group-hover:text-white transition-colors" />
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-neon-blue to-neon-purple p-[1px]">
+                <div className="w-full h-full rounded-full bg-[#111] flex items-center justify-center text-xs font-bold text-neon-blue">
+                  <User size={14} />
                 </div>
               </div>
-
-              {showRoleMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-[#111] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-white/5">
-                    Switch Role
-                  </div>
-                  <button 
-                    onClick={() => { setRole('Admin'); setShowRoleMenu(false); }}
-                    className={cn(
-                      "w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5",
-                      role === 'Admin' ? "text-neon-blue bg-neon-blue/5" : "text-gray-300"
-                    )}
-                  >
-                    Admin
-                  </button>
-                  <button 
-                    onClick={() => { setRole('Security Analyst'); setShowRoleMenu(false); }}
-                    className={cn(
-                      "w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5",
-                      role === 'Security Analyst' ? "text-neon-blue bg-neon-blue/5" : "text-gray-300"
-                    )}
-                  >
-                    Security Analyst
-                  </button>
-                </div>
-              )}
+              <div className="text-sm">
+                <p className="font-medium text-gray-200">{user.email}</p>
+                <p className="text-xs text-neon-blue">{dashboardRole}</p>
+              </div>
             </div>
           </div>
         </header>

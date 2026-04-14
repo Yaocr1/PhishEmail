@@ -3,9 +3,11 @@ import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Mail, Lock, ArrowRight } from 'lucide-react';
 import { apiUrl, getApiErrorMessage } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +32,15 @@ export const Login = () => {
         throw new Error(payload.error || getApiErrorMessage('Login failed.', null, response.status));
       }
 
+      const payload = await response.json();
+      const normalizedRole = String(payload?.role || '').toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
+
+      login({
+        id: String(payload?.id || crypto.randomUUID()),
+        email: String(payload?.email || email),
+        role: normalizedRole,
+      });
+
       navigate('/admin');
     } catch (loginError) {
       setError(getApiErrorMessage('Login failed.', loginError));
@@ -52,7 +63,7 @@ export const Login = () => {
             <Shield size={24} />
           </div>
           <h1 className="text-2xl font-bold font-display text-white mb-2">Welcome Back</h1>
-          <p className="text-gray-400 text-sm">Sign in to access your dashboard and analysis history.</p>
+          <p className="text-gray-400 text-sm">Single login for both admin and user accounts.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
