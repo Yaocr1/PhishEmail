@@ -445,16 +445,19 @@ const DemoSection = () => {
       });
 
       if (!fallbackResponse.ok) {
+        if (fallbackResponse.status === 422) {
+          throw new Error('Model endpoint rejected the request format. Include a fuller email subject and body for analysis.');
+        }
         throw new Error(`Model endpoint responded with status ${fallbackResponse.status}.`);
       }
 
       const fallbackPayload = await fallbackResponse.json();
       setResult(fromModelPayload(fallbackPayload));
-      setAnalysisNotice('Backend API was unreachable, so this result was generated directly from the deployed model endpoint for live demo continuity.');
-    } catch {
+      setAnalysisNotice('Live demo is running in fallback mode: the backend API could not be reached, so this result came directly from the model endpoint. For calibrated scoring and saved history, connect the backend API in deployment settings.');
+    } catch (fallbackError) {
       setResult(heuristicResult(subject, sender, emailText));
       setAnalysisNotice(
-        `Backend and model endpoint were unreachable. A local heuristic estimate is shown so the demo remains usable. ${getApiErrorMessage('Live backend request failed.', backendFailure, backendStatus)}`
+        `Live demo fallback could not use the model endpoint (${getApiErrorMessage('Model fallback failed.', fallbackError)}). A local heuristic estimate is shown so the demo remains usable. ${getApiErrorMessage('Live backend request failed.', backendFailure, backendStatus)}`
       );
     } finally {
       setIsAnalyzing(false);
