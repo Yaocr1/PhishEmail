@@ -6,7 +6,7 @@ export const HF_FALLBACK_URL = rawModelFallbackUrl.replace(/\/+$/, "");
 
 export const API_CONNECTION_HINT = API_BASE_URL
   ? `Backend API URL: ${API_BASE_URL}`
-  : "Set VITE_API_BASE_URL to your backend URL in Netlify environment settings.";
+  : "Using same-origin /api. For hosted deployments, leave VITE_API_BASE_URL empty (same project) or set it to your backend URL.";
 
 export function apiUrl(path: string) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
