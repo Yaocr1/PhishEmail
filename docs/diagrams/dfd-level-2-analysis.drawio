@@ -1,0 +1,76 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:15:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="dfd-l2-analysis" name="DFD Level 2 - Analysis Pipeline">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2300" pageHeight="1450" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Data Flow Diagram - Level 2 (P2 Email Analysis and Verdict Generation)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2160" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extUser" value="E1 Visitor / User" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="350" width="240" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extHF" value="E2 HF Inference API" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1900" y="250" width="240" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p21" value="P2.1 Validate and Normalize Input" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="180" width="340" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p22" value="P2.2 Build Inference Payload" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="180" width="330" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p23" value="P2.3 Request Model Inference" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="180" width="330" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p24" value="P2.4 Transform Prediction to Verdict" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="470" width="340" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p25" value="P2.5 Apply Threshold and Risk Mapping" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="470" width="330" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p26" value="P2.6 Persist Scan Record" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="470" width="330" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p27" value="P2.7 Return API Response" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="700" width="330" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d2" value="D1 phish_email_scans" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="980" width="300" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d3" value="D2 phish_system_settings" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="910" y="980" width="310" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="subject, sender, body, userId" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extUser" target="p21"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="normalized input" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p21" target="p22"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f3" value="payload text" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p22" target="p23"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="inference request" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p23" target="extHF"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f5" value="label/confidence/probability" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extHF" target="p24"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="preliminary verdict" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p24" target="p25"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f7" value="read threshold" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p25" target="d3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f8" value="threshold value" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d3" target="p25"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f9" value="final verdict + risk level" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p25" target="p26"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f10" value="insert scan row" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p26" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f11" value="persisted row" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d2" target="p26"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f12" value="response payload" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p26" target="p27"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f13" value="verdict + metadata" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p27" target="extUser"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="n1" value="If model endpoint is unavailable, API returns explicit service-unavailable message." style="shape=note;whiteSpace=wrap;html=1;strokeColor=#7f7f7f;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1710" y="520" width="430" height="95" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

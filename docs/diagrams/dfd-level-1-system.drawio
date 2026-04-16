@@ -1,0 +1,101 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:05:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="dfd-l1" name="DFD Level 1 - Major Processes">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Data Flow Diagram - Level 1 (Process Decomposition)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="2480" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extUser" value="E1 Visitor / User" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="280" width="230" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extAdmin" value="E2 Admin" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="540" width="230" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extHF" value="E3 HF API" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="2180" y="240" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1" value="P1 Authentication and Access Control" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="180" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2" value="P2 Email Analysis and Verdict Generation" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="180" width="390" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3" value="P3 User Scan History Retrieval" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="180" width="340" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4" value="P4 Admin Dashboard and Governance" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="460" width="390" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5" value="P5 Contact Message Logging" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="470" y="460" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d1" value="D1 phish_users" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="760" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d2" value="D2 phish_email_scans" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="760" width="280" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d3" value="D3 phish_system_settings" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="760" width="290" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d4" value="D4 phish_audit_logs" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="760" width="250" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="signup/login payload" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extUser" target="p1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="auth response + role" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p1" target="extUser"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f3" value="manual email payload" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extUser" target="p2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="verdict + metadata" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p2" target="extUser"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f5" value="history request" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extUser" target="p3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="scan list" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p3" target="extUser"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f7" value="dashboard/users/threats/analytics request" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extAdmin" target="p4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f8" value="admin views + metrics" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p4" target="extAdmin"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f9" value="contact payload" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extUser" target="p5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f10" value="contact ack" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p5" target="extUser"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f11" value="inference request" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p2" target="extHF"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f12" value="inference response" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="extHF" target="p2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f13" value="create/read users" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p1" target="d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f14" value="user rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d1" target="p1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f15" value="save scan" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p2" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f16" value="scan rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d2" target="p2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f17" value="read own scans" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p3" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f18" value="filtered scan rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d2" target="p3"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f19" value="read threshold" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p2" target="d3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f20" value="threshold value" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d3" target="p2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f21" value="admin users CRUD" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p4" target="d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f22" value="user dataset" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d1" target="p4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f23" value="admin scans query" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p4" target="d2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f24" value="threat/analytics rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d2" target="p4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f25" value="write contact log" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p5" target="d4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f26" value="audit rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d4" target="p5"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

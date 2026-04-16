@@ -1,0 +1,46 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:00:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="dfd-l0" name="DFD Level 0 - Context">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Data Flow Diagram - Level 0 (Context)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2080" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="E1 Visitor / User" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="320" width="260" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" value="E2 Admin" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="560" width="260" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p0" value="P0 PhishBERT System\n(Auth, Analysis, History, Admin, Contact)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="760" y="360" width="560" height="260" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e3" value="E3 HF Inference API" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="280" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e4" value="E4 Supabase PostgreSQL" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="580" width="300" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="sign up, log in, analyze request, contact message" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="e1" target="p0"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="auth result, verdict, history, status" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="p0" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f3" value="dashboard, users, threats, analytics requests" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="e2" target="p0"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="admin metrics, user list, threat data" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="p0" target="e2"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f5" value="inference payload" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="p0" target="e3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="label, confidence, phishing probability" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="e3" target="p0"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f7" value="create/read/update data" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="p0" target="e4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f8" value="users, scans, settings, audit rows" style="endArrow=block;html=1;strokeColor=#44546a;fontColor=#1f2937;" edge="1" parent="1" source="e4" target="p0"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

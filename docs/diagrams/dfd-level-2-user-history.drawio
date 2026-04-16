@@ -1,0 +1,45 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:25:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="dfd-l2-history" name="DFD Level 2 - User History">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Data Flow Diagram - Level 2 (P3 User Scan History Retrieval)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2080" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ext" value="E1 User" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="340" width="240" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p31" value="P3.1 Validate userId and limit" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="180" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p32" value="P3.2 Query scans by user_id" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="180" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p33" value="P3.3 Sort by timestamp (DESC)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="510" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p34" value="P3.4 Map and return response rows" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="510" width="350" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d1" value="D1 phish_email_scans" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="840" width="320" height="95" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="history request" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="ext" target="p31"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="validated filters" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p31" target="p32"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f3" value="read filtered scans" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p32" target="d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="scan rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d1" target="p33"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f5" value="ordered rows" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p33" target="p34"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="scan history JSON" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p34" target="ext"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,45 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:28:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="dfd-l2-contact" name="DFD Level 2 - Contact Logging">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Data Flow Diagram - Level 2 (P5 Contact Message Logging)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2080" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ext" value="E1 Visitor / User" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#ffffff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="360" width="250" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p51" value="P5.1 Validate Contact Payload" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="190" width="360" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p52" value="P5.2 Construct Contact Audit Message" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="190" width="380" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p53" value="P5.3 Persist Audit Entry" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="520" width="360" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p54" value="P5.4 Return Confirmation" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="520" width="380" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="d1" value="D1 phish_audit_logs" style="shape=datastore;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="850" width="330" height="95" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="name, email, message" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="ext" target="p51"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="validated contact data" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p51" target="p52"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f3" value="audit payload" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p52" target="p53"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="insert row" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p53" target="d1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f5" value="insert success" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="d1" target="p54"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="201 confirmation" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="p54" target="ext"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

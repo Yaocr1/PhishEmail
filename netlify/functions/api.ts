@@ -172,44 +172,6 @@ function parseLimit(value: string | undefined, fallback: number, max: number) {
   return Math.min(parsed, max);
 }
 
-function fallbackHeuristic(subject: string, sender: string, snippet: string): NormalizedAnalysis {
-  const text = `${subject} ${sender} ${snippet}`.toLowerCase();
-  const suspiciousTerms = [
-    'urgent',
-    'verify',
-    'account',
-    'suspend',
-    'password',
-    'click',
-    'login',
-    'security alert',
-    'payment method',
-    'wire transfer',
-    'bank',
-  ];
-
-  let score = 0.1;
-  suspiciousTerms.forEach((term) => {
-    if (text.includes(term)) {
-      score += 0.08;
-    }
-  });
-
-  if (text.includes('http://') || text.includes('bit.ly') || text.includes('tinyurl')) {
-    score += 0.2;
-  }
-
-  const phishingProb = clamp01(score);
-  const label = phishingProb >= 0.55 ? 'phishing' : 'legitimate';
-
-  return {
-    label,
-    confidence: label === 'phishing' ? phishingProb : clamp01(1 - phishingProb),
-    phishingProb,
-    requestId: null,
-  };
-}
-
 function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
   const candidate = Array.isArray(payload) ? payload[0] : payload;
   const rawLabel = String(candidate?.label || candidate?.class || '').toLowerCase();
@@ -231,9 +193,9 @@ function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
 }
 
 async function analyzeEmailAsync(subject: string, sender: string, snippet: string) {
-  try {
-    const fullText = `Subject: ${subject}\nSender: ${sender}\n\n${snippet}`.substring(0, 15000);
+  const fullText = `Subject: ${subject}\nSender: ${sender}\n\n${snippet}`.substring(0, 15000);
 
+  try {
     const response = await fetch(HF_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -241,13 +203,13 @@ async function analyzeEmailAsync(subject: string, sender: string, snippet: strin
     });
 
     if (!response.ok) {
-      throw new Error(`HF API responded with status ${response.status}`);
+      throw new Error('model is sleeping at HF.');
     }
 
     const rawResponse = await response.json();
     return normalizeHFAnalysis(rawResponse);
   } catch {
-    return fallbackHeuristic(subject, sender, snippet);
+    throw new Error('model is sleeping at HF.');
   }
 }
 

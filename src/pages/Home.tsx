@@ -4,7 +4,7 @@ import {
   Shield, Zap, Layers, Brain, Search, Lock, 
   Code, AlertTriangle, CheckCircle, ArrowRight, Activity 
 } from 'lucide-react';
-import { API_BASE_URL, HF_FALLBACK_URL, apiUrl, getApiErrorMessage } from '../lib/api';
+import { API_BASE_URL, apiUrl } from '../lib/api';
 
 type DemoAnalysisResult = {
   id: string;
@@ -13,12 +13,6 @@ type DemoAnalysisResult = {
   phishingProb: number;
   isPhishing: boolean;
   threshold: number;
-};
-
-type NormalizedModelResult = {
-  label: 'phishing' | 'legitimate';
-  confidence: number;
-  phishingProb: number;
 };
 
 const DEMO_THRESHOLD = 0.6;
@@ -35,65 +29,6 @@ const createLocalId = (prefix: string) => {
   return `${prefix}-${Date.now()}`;
 };
 
-const normalizeModelOutput = (payload: any): NormalizedModelResult => {
-  const candidate = Array.isArray(payload) ? payload[0] : payload;
-  const rawLabel = String(candidate?.label || candidate?.class || '').toLowerCase();
-  const phishingByLabel = rawLabel.includes('phish');
-
-  const phishingProb = clamp01(
-    Number(candidate?.phishing_prob ?? (phishingByLabel ? candidate?.score : undefined) ?? candidate?.probability ?? 0)
-  );
-
-  const label: 'phishing' | 'legitimate' = phishingByLabel || phishingProb >= 0.5 ? 'phishing' : 'legitimate';
-  const confidence = clamp01(Number(candidate?.confidence ?? (label === 'phishing' ? phishingProb : 1 - phishingProb)));
-
-  return {
-    label,
-    confidence,
-    phishingProb,
-  };
-};
-
-const heuristicResult = (subject: string, sender: string, text: string): DemoAnalysisResult => {
-  const lowercaseText = `${subject} ${sender} ${text}`.toLowerCase();
-  const suspiciousTerms = [
-    'urgent',
-    'verify',
-    'account',
-    'suspend',
-    'password',
-    'click',
-    'login',
-    'security alert',
-    'payment method',
-    'wire transfer',
-    'bank',
-  ];
-
-  let score = 0.1;
-  suspiciousTerms.forEach((term) => {
-    if (lowercaseText.includes(term)) {
-      score += 0.08;
-    }
-  });
-
-  if (lowercaseText.includes('http://') || lowercaseText.includes('bit.ly') || lowercaseText.includes('tinyurl')) {
-    score += 0.2;
-  }
-
-  const phishingProb = clamp01(score);
-  const label = phishingProb >= DEMO_THRESHOLD ? 'phishing' : 'legitimate';
-  const confidence = label === 'phishing' ? phishingProb : clamp01(1 - phishingProb);
-
-  return {
-    id: createLocalId('heuristic'),
-    label,
-    confidence,
-    phishingProb,
-    isPhishing: phishingProb >= DEMO_THRESHOLD,
-    threshold: DEMO_THRESHOLD,
-  };
-};
 
 const fromBackendPayload = (payload: any): DemoAnalysisResult => {
   const threshold = clamp01(Number(payload?.threshold ?? DEMO_THRESHOLD));
@@ -108,18 +43,6 @@ const fromBackendPayload = (payload: any): DemoAnalysisResult => {
     phishingProb,
     isPhishing,
     threshold,
-  };
-};
-
-const fromModelPayload = (payload: any): DemoAnalysisResult => {
-  const normalized = normalizeModelOutput(payload);
-  return {
-    id: createLocalId('model'),
-    label: normalized.label,
-    confidence: normalized.confidence,
-    phishingProb: normalized.phishingProb,
-    isPhishing: normalized.phishingProb >= DEMO_THRESHOLD,
-    threshold: DEMO_THRESHOLD,
   };
 };
 
@@ -403,9 +326,6 @@ const DemoSection = () => {
     setAnalysisNotice(null);
     setResult(null);
 
-    let backendFailure: unknown = null;
-    let backendStatus: number | undefined;
-    
     try {
       const response = await fetch(apiUrl('/api/analyze'), {
         method: 'POST',
@@ -420,9 +340,8 @@ const DemoSection = () => {
       });
 
       if (!response.ok) {
-        backendStatus = response.status;
-        const payload = await response.json().catch(() => ({ error: getApiErrorMessage('Analysis request failed.', null, response.status) }));
-        throw new Error(payload.error || getApiErrorMessage('Analysis request failed.', null, response.status));
+        const payload = await response.json().catch(() => ({ error: 'model is sleeping at HF.' }));
+        throw new Error(payload.error || 'model is sleeping at HF.');
       }
 
       const payload = await response.json();
@@ -430,35 +349,9 @@ const DemoSection = () => {
       if (!API_BASE_URL) {
         setAnalysisNotice('Running with same-origin API path. For Netlify deployments, set VITE_API_BASE_URL to your backend URL.');
       }
-      return;
     } catch (analysisError) {
-      backendFailure = analysisError;
-    }
-
-    try {
-      const fallbackResponse = await fetch(HF_FALLBACK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: `Subject: ${subject}\nSender: ${sender}\n\n${emailText}`.substring(0, 15000) }),
-      });
-
-      if (!fallbackResponse.ok) {
-        if (fallbackResponse.status === 422) {
-          throw new Error('Model endpoint rejected the request format. Include a fuller email subject and body for analysis.');
-        }
-        throw new Error(`Model endpoint responded with status ${fallbackResponse.status}.`);
-      }
-
-      const fallbackPayload = await fallbackResponse.json();
-      setResult(fromModelPayload(fallbackPayload));
-      setAnalysisNotice('Live demo is running in fallback mode: the backend API could not be reached, so this result came directly from the model endpoint. For calibrated scoring and saved history, connect the backend API in deployment settings.');
-    } catch (fallbackError) {
-      setResult(heuristicResult(subject, sender, emailText));
-      setAnalysisNotice(
-        `Live demo fallback could not use the model endpoint (${getApiErrorMessage('Model fallback failed.', fallbackError)}). A local heuristic estimate is shown so the demo remains usable. ${getApiErrorMessage('Live backend request failed.', backendFailure, backendStatus)}`
-      );
+      const message = analysisError instanceof Error ? analysisError.message : 'model is sleeping at HF.';
+      setError(message || 'model is sleeping at HF.');
     } finally {
       setIsAnalyzing(false);
     }

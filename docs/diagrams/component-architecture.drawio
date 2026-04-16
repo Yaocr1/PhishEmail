@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:20:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="component-1" name="Component Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Component Architecture (Current Implementation)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2080" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="clientBox" value="Client Layer" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#f8fbff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="140" width="640" height="1070" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="apiBox" value="API Layer" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#f8fbff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="790" y="140" width="640" height="1070" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="extBox" value="External Services Layer" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#f8fbff;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="140" width="620" height="1070" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c1" value="React App (Vite + TypeScript)\n- src/App.tsx\n- src/main.tsx" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="140" y="210" width="530" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c2" value="Auth Context\n- localStorage session\n- role-aware access" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="140" y="360" width="530" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c3" value="User Pages\n- Home, Login, SignUp\n- UserDashboard" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="140" y="500" width="530" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c4" value="Admin Pages\n- Dashboard\n- UsersManagement\n- ThreatLog\n- Analytics" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="140" y="650" width="530" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c5" value="Frontend API Client\n- src/lib/api.ts\n- fetch wrappers" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="140" y="830" width="530" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a1" value="Netlify Function Router\n- netlify/functions/api.ts\n- route dispatch by method/path" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="210" width="530" height="110" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a2" value="Auth Module\n- signup/login\n- bcrypt hashing/verification" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="360" width="530" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a3" value="Analysis Module\n- normalize payload\n- HF inference call\n- threshold-based verdict" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="500" width="530" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a4" value="User Data Module\n- /api/user/scans" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="660" width="530" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a5" value="Admin Data Module\n- /api/admin/* routes\n- metrics, users CRUD, threats, analytics" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="790" width="530" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a6" value="Local Dev Adapter\n- server.ts (Express proxy to same handler)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="840" y="950" width="530" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="Supabase PostgreSQL\n- users\n- scans\n- settings\n- audit logs" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="280" width="500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e2" value="Hugging Face Endpoint\n- model inference service" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="470" width="500" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e3" value="Netlify Hosting Runtime\n- serverless execution" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="640" width="500" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="REST calls" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="c5" target="a1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="route to auth" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a1" target="a2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f3" value="route to analysis" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a1" target="a3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="route to user/admin" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a1" target="a4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f5" value="route to admin" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a1" target="a5"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f6" value="DB operations" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a2" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f7" value="DB operations" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a3" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f8" value="DB operations" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a4" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f9" value="DB operations" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a5" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f10" value="inference request/response" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a3" target="e2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f11" value="deploy/runtime" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="a1" target="e3"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

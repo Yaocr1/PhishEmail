@@ -1,0 +1,52 @@
+<mxfile host="app.diagrams.net" modified="2026-04-15T16:22:00.000Z" agent="5.0" version="24.7.7">
+  <diagram id="deploy-1" name="Deployment Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="PhishBERT Deployment Architecture (Current Cloud + Local Development)" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#dbe5f1;fontColor=#1f2937;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="2080" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="internet" value="Internet" style="ellipse;whiteSpace=wrap;html=1;strokeColor=#1f4e79;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="120" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="client" value="Client Browser\n(React SPA)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#ffffff;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="180" y="300" width="300" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="netlify" value="Netlify\n- Static frontend hosting\n- Serverless function /api" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#eef3f8;fontColor=#1f2937;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="280" width="430" height="180" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="supabase" value="Supabase PostgreSQL\n(phish_users, phish_email_scans,\nphish_system_settings, phish_audit_logs)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="280" width="500" height="170" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hf" value="Hugging Face Model Endpoint\n(email phishing inference)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#7f6000;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="520" width="500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="local" value="Local Development Environment\n- Vite dev server\n- server.ts Express adapter\n- proxies to same API handler" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#44546a;fillColor=#ffffff;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="180" y="620" width="420" height="170" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="HTTPS" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="client" target="internet"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f2" value="HTTPS" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="internet" target="netlify"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f3" value="DB reads/writes" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="netlify" target="supabase"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f4" value="model inference call" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="netlify" target="hf"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="f5" value="local API calls" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="client" target="local"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f6" value="same handler logic" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="local" target="supabase"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="f7" value="same inference dependency" style="endArrow=block;html=1;strokeColor=#44546a;" edge="1" parent="1" source="local" target="hf"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="n1" value="Operational note: local and cloud runtimes share the same route behavior through the unified handler pattern." style="shape=note;whiteSpace=wrap;html=1;strokeColor=#7f7f7f;fillColor=#fff2cc;fontColor=#1f2937;" vertex="1" parent="1">
+          <mxGeometry x="710" y="700" width="620" height="90" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
