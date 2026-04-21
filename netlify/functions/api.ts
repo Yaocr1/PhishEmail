@@ -192,8 +192,14 @@ function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
   };
 }
 
-async function analyzeEmailAsync(subject: string, sender: string, snippet: string) {
-  const fullText = `Subject: ${subject}\nSender: ${sender}\n\n${snippet}`.substring(0, 15000);
+async function analyzeEmailAsync(_subject: string, _sender: string, snippet: string) {
+  // Model is calibrated for message-body semantics. Injecting synthetic
+  // Subject:/Sender: prefixes biases legitimate content toward phishing.
+  const fullText = String(snippet || '').trim().substring(0, 15000);
+
+  if (!fullText) {
+    throw new Error('Email text is required for analysis.');
+  }
 
   try {
     const response = await fetch(HF_API_URL, {

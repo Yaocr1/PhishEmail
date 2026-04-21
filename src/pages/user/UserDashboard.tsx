@@ -25,8 +25,8 @@ type UserScan = {
 
 export const UserDashboard = () => {
   const { user } = useAuth();
-  const [subject, setSubject] = useState('Manual Inbox Check');
-  const [sender, setSender] = useState('unknown.sender@email.test');
+  const [subject, setSubject] = useState('');
+  const [sender, setSender] = useState('');
   const [emailText, setEmailText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -85,8 +85,8 @@ export const UserDashboard = () => {
         },
         body: JSON.stringify({
           userId: user.id,
-          subject,
-          sender,
+          subject: subject.trim() || 'Manual Inbox Check',
+          sender: sender.trim() || 'manual@input.local',
           text: emailText,
         }),
       });
@@ -117,24 +117,28 @@ export const UserDashboard = () => {
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Email Subject</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Email Subject (optional metadata)</label>
               <input
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
                 className="w-full bg-[#0a0a0a] border border-[#333] rounded-xl p-3 text-gray-200 focus:outline-none focus:border-neon-blue transition-colors text-sm"
-                placeholder="Subject line"
+                placeholder="Optional: subject line"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Sender</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Sender (optional metadata)</label>
               <input
                 value={sender}
                 onChange={(event) => setSender(event.target.value)}
                 className="w-full bg-[#0a0a0a] border border-[#333] rounded-xl p-3 text-gray-200 focus:outline-none focus:border-neon-blue transition-colors text-sm"
-                placeholder="sender@example.com"
+                placeholder="Optional: sender@example.com"
               />
             </div>
           </div>
+
+          <p className="text-xs text-gray-500 mb-4">
+            Classification uses the email content field. Subject and sender are stored for history context.
+          </p>
 
           <label className="block text-sm font-medium text-gray-400 mb-2">Email Content</label>
           <textarea
