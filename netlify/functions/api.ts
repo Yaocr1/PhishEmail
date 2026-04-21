@@ -175,14 +175,46 @@ function parseLimit(value: string | undefined, fallback: number, max: number) {
 function normalizeHFAnalysis(payload: any): NormalizedAnalysis {
   const candidate = Array.isArray(payload) ? payload[0] : payload;
   const rawLabel = String(candidate?.label || candidate?.class || '').toLowerCase();
-  const phishingLabel = rawLabel.includes('phish');
+  const labelIdRaw = candidate?.label_id;
+  const labelId = Number.isFinite(Number(labelIdRaw)) ? Number(labelIdRaw) : null;
 
-  const phishingProb = clamp01(
-    Number(candidate?.phishing_prob ?? (phishingLabel ? candidate?.score : undefined) ?? candidate?.probability ?? 0)
-  );
+  const explicitPhishing =
+    rawLabel.includes('phish') || rawLabel.includes('malicious') || rawLabel.includes('spam') || rawLabel.includes('fraud');
+  const explicitLegitimate = rawLabel.includes('legit') || rawLabel.includes('ham') || rawLabel.includes('safe') || rawLabel.includes('benign');
 
-  const label: 'phishing' | 'legitimate' = phishingLabel || phishingProb >= 0.5 ? 'phishing' : 'legitimate';
-  const confidence = clamp01(Number(candidate?.confidence ?? (label === 'phishing' ? phishingProb : 1 - phishingProb)));
+  const score = Number(candidate?.score);
+  const confidenceInput = Number(candidate?.confidence);
+
+  let phishingProb = Number(candidate?.phishing_prob ?? candidate?.probability);
+
+  if (!Number.isFinite(phishingProb) && Number.isFinite(score)) {
+    if (explicitPhishing || labelId === 1) {
+      phishingProb = score;
+    } else if (explicitLegitimate || labelId === 0) {
+      phishingProb = 1 - score;
+    }
+  }
+
+  if (!Number.isFinite(phishingProb) && Number.isFinite(confidenceInput)) {
+    if (explicitPhishing || labelId === 1) {
+      phishingProb = confidenceInput;
+    } else if (explicitLegitimate || labelId === 0) {
+      phishingProb = 1 - confidenceInput;
+    }
+  }
+
+  phishingProb = clamp01(Number.isFinite(phishingProb) ? phishingProb : 0);
+
+  let label: 'phishing' | 'legitimate';
+  if (explicitPhishing || labelId === 1) {
+    label = 'phishing';
+  } else if (explicitLegitimate || labelId === 0) {
+    label = 'legitimate';
+  } else {
+    label = phishingProb >= 0.5 ? 'phishing' : 'legitimate';
+  }
+
+  const confidence = clamp01(Number.isFinite(confidenceInput) ? confidenceInput : label === 'phishing' ? phishingProb : 1 - phishingProb);
 
   return {
     label,
